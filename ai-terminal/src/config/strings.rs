@@ -36,4 +36,4 @@ pub const OLLAMA_NOT_RUNNING: &str = "Make sure Ollama is running (http://localh
 pub const OLLAMA_INSTALL_INSTRUCTIONS: &str = "You can install Ollama from https://ollama.ai";
 pub const NO_MODELS_FOUND: &str = "No models found. You need to pull models first.";
 pub const OLLAMA_PULL_INSTRUCTIONS: &str =
-    "Run 'ollama pull llama3.2:latest' in the terminal to get started.";
+    "Run 'ollama pull macsdeve/BetterBash3:latest' in the terminal to get started.";

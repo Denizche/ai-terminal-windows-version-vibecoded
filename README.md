@@ -1,99 +1,94 @@
 # AI Terminal
 
-Your AI mate into your favourite terminal
-
-## Overview
-
-AI Terminal is a powerful command-line interface application that brings AI assistance directly to your terminal. It helps you with common tasks, provides information, and enhances your terminal experience with AI capabilities.
+A Rust-based terminal application with integrated AI capabilities.
 
 ## Features
 
-- AI-powered command suggestions
-- Natural language processing for terminal commands
-- Cross-platform support (macOS, Linux, Windows)
-- Lightweight and fast performance
+- Modern UI built with Iced
+- Integrated AI assistance
+- Cross-platform support for macOS and Linux
 
-## Installation
+## Requirements
 
-### macOS
+- Rust 1.72 or newer
+- Cargo (Rust's package manager)
+- For Linux builds: GTK3 development libraries
 
-#### Using DMG Installer
-1. Download the latest DMG file for your architecture (ARM64 for Apple Silicon, x86_64 for Intel) from the [Releases](https://github.com/yourusername/ai-terminal/releases) page
-2. Open the DMG file
-3. Drag the AI Terminal app to your Applications folder
-4. Run AI Terminal from your Applications folder
+## Development Setup
 
-#### Using Install Script
-```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/ai-terminal/main/ai-terminal/install.sh | bash
-```
+1. Clone the repository:
+   ```
+   git clone https://github.com/your-username/ai-terminal.git
+   cd ai-terminal
+   ```
 
-### Linux
+2. Build and run the project:
+   ```
+   cd ai-terminal
+   cargo run
+   ```
 
-#### Using Debian Package
-1. Download the latest .deb file from the [Releases](https://github.com/yourusername/ai-terminal/releases) page
-2. Install using:
-```bash
-sudo dpkg -i ai-terminal.deb
-```
+## Building Packages
 
-#### Building from Source
-```bash
-git clone https://github.com/yourusername/ai-terminal.git
-cd ai-terminal/ai-terminal
-cargo build --release
-sudo cp target/release/ai-terminal /usr/local/bin/
-```
+### Manual Build
 
-### Windows
+#### macOS (Universal Binary)
 
-1. Download the latest Windows zip file from the [Releases](https://github.com/yourusername/ai-terminal/releases) page
-2. Extract the zip file to a location of your choice
-3. Run the `run-ai-terminal.bat` file
-
-## Usage
-
-Simply type your query or command after launching AI Terminal:
+To build a universal binary (works on both Intel and Apple Silicon):
 
 ```bash
-ai-terminal "What's the weather like today?"
+# Build for Intel
+cargo build --release --target x86_64-apple-darwin
+
+# Build for Apple Silicon
+cargo build --release --target aarch64-apple-darwin
+
+# Create universal binary
+mkdir -p target/universal-apple-darwin/release
+lipo -create \
+  target/x86_64-apple-darwin/release/ai-terminal \
+  target/aarch64-apple-darwin/release/ai-terminal \
+  -output target/universal-apple-darwin/release/ai-terminal
 ```
 
-Or launch the interactive mode:
+To create a DMG package:
 
 ```bash
-ai-terminal
+# Install cargo-bundle
+cargo install cargo-bundle
+
+# Create DMG
+cargo bundle --release
 ```
 
-## Building from Source
+#### Linux (Debian-based)
 
-### Prerequisites
-- Rust and Cargo (latest stable version)
-- For macOS: Xcode Command Line Tools
-- For Linux: build-essential, libssl-dev, pkg-config
-- For Windows: Visual Studio Build Tools
+To build a DEB package:
 
-### Build Steps
 ```bash
-git clone https://github.com/yourusername/ai-terminal.git
-cd ai-terminal/ai-terminal
-cargo build --release
+# Install dependencies
+sudo apt-get update
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+# Install cargo-bundle
+cargo install cargo-bundle
+
+# Create DEB package
+cargo bundle --release --format deb
 ```
 
-The compiled binary will be available at `target/release/ai-terminal`.
+### Automated Build
 
-## Releases
+This project includes a GitHub Actions workflow that automatically builds packages for macOS (DMG) and Linux (DEB) when you push to the master branch.
 
-We use GitHub Actions to automatically build and release packages for macOS (ARM64 and x86_64), Linux, and Windows when a new tag is pushed. The release workflow creates:
+The workflow:
+1. Builds a universal binary for macOS
+2. Creates a DMG package for macOS
+3. Builds a DEB package for Linux
+4. Uploads these packages as artifacts
 
-- DMG installers for macOS (both ARM64 and x86_64 architectures)
-- DEB package for Linux
-- ZIP archive for Windows
+You can find the built packages in the "Actions" tab of the GitHub repository after a successful workflow run.
 
 ## License
 
 [MIT License](LICENSE)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
