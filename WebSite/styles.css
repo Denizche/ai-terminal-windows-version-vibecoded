@@ -439,24 +439,40 @@ nav {
 /* Demo Section */
 .demo {
     padding: 100px 0;
-    background-color: #f8f9fa;
+    background-color: var(--dark-color);
+    color: white;
 }
 
 .demo h2 {
     text-align: center;
+    margin-bottom: 50px;
     font-size: 2.5rem;
-    margin-bottom: 60px;
-    color: var(--dark-color);
+    color: white;
+}
+
+.video-container {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto 50px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.video-container video {
+    display: block;
+    width: 100%;
+    height: auto;
 }
 
 .demo-terminal {
-    width: 90%;
-    max-width: 800px;
+    width: 100%;
+    max-width: 900px;
     margin: 0 auto;
     background-color: var(--terminal-bg);
-    border-radius: 10px;
+    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .demo-interaction {
@@ -558,6 +574,14 @@ footer {
     .footer-content {
         flex-direction: column;
         gap: 20px;
+    }
+
+    .demo-terminal {
+        display: none;
+    }
+    
+    .video-container {
+        margin-bottom: 0;
     }
 }
 
