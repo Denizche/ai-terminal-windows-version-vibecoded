@@ -40,17 +40,61 @@ jobs:
             target/aarch64-apple-darwin/release/ai-terminal \
             -output target/release/ai-terminal
       
-      - name: Create DMG
+      - name: Create App Bundle
         run: |
           cd ai-terminal
           # Use the default target for bundle creation
           cargo bundle --release
           
-      - name: Upload macOS artifact
+      - name: Create DMG
+        run: |
+          cd ai-terminal
+          # Install create-dmg and ImageMagick
+          brew install create-dmg imagemagick
+          
+          # Create a basic background if it doesn't exist
+          if [ ! -f "icons/dmg-background.png" ]; then
+            mkdir -p icons
+            # Create a simple colored background
+            convert -size 800x500 -gravity center gradient:gray10-gray30 \
+              -fill white -pointsize 24 -annotate 0 "AI Terminal" \
+              icons/dmg-background.png
+          fi
+          
+          # Create DMG from the .app bundle
+          create-dmg \
+            --volname "AI Terminal" \
+            --background "icons/dmg-background.png" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "AI Terminal.app" 200 190 \
+            --app-drop-link 600 185 \
+            "target/release/AI-Terminal-Installer.dmg" \
+            "target/release/bundle/osx/AI Terminal.app" || \
+          # Fallback if the above fails (perhaps due to background image issues)
+          create-dmg \
+            --volname "AI Terminal" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "AI Terminal.app" 200 190 \
+            --app-drop-link 600 185 \
+            "target/release/AI-Terminal-Installer.dmg" \
+            "target/release/bundle/osx/AI Terminal.app"
+      
+      - name: Upload macOS app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: ai-terminal/target/release/bundle/osx/*.app
+          retention-days: 7
+          
+      - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: ai-terminal/target/release/bundle/osx/*.dmg
+          path: ai-terminal/target/release/AI-Terminal-Installer.dmg
           retention-days: 7
   
   build-linux:

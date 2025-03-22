@@ -51,14 +51,26 @@ lipo -create \
   -output target/release/ai-terminal
 ```
 
-To create a DMG package:
+To create an application bundle and DMG package:
 
 ```bash
-# Install cargo-bundle
+# Install cargo-bundle and create-dmg
 cargo install cargo-bundle
+brew install create-dmg  # macOS only
 
-# Create DMG (will use the universal binary created above)
+# Create .app bundle
 cargo bundle --release
+
+# Create DMG from the .app bundle
+create-dmg \
+  --volname "AI Terminal" \
+  --window-pos 200 120 \
+  --window-size 800 400 \
+  --icon-size 100 \
+  --icon "AI Terminal.app" 200 190 \
+  --app-drop-link 600 185 \
+  "target/release/AI-Terminal-Installer.dmg" \
+  "target/release/bundle/osx/AI Terminal.app"
 ```
 
 #### Linux (Debian-based)
@@ -84,9 +96,10 @@ This project includes a GitHub Actions workflow that automatically builds packag
 The workflow:
 1. Builds both Intel and Apple Silicon binaries for macOS
 2. Creates a universal binary by combining them
-3. Creates a DMG package for macOS
-4. Builds a DEB package for Linux
-5. Uploads these packages as artifacts
+3. Creates a macOS .app bundle using cargo-bundle
+4. Packages the .app into a DMG installer
+5. Builds a DEB package for Linux
+6. Uploads these packages as artifacts
 
 You can find the built packages in the "Actions" tab of the GitHub repository after a successful workflow run.
 
