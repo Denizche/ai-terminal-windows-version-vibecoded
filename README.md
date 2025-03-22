@@ -171,6 +171,56 @@ For proper distribution, you should sign the application with a valid Apple Deve
 
 The Linux package is built with static linking for the C runtime library to maximize compatibility across different Linux distributions. This should help avoid errors related to GLIBC version mismatches. However, you still need to have a compatible version of GTK3 and WebKit libraries installed on the target system.
 
+## Quick Guide to Using Ollama to Download `macsdeve/BetterBash3` Model
+
+### Linux
+
+1. **Install Ollama**
+
+Open your terminal and run:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+2. **Download the Model**
+
+Run the following command:
+
+```bash
+ollama pull macsdeve/BetterBash3
+```
+
+### macOS
+
+1. **Download Ollama**
+
+- Visit [Ollama download page](https://ollama.com/download/mac).
+- Click **Download for macOS**.
+
+2. **Install Ollama**
+
+- Open the downloaded `.zip` file from your `Downloads` folder.
+- Drag the `Ollama.app` into your `Applications` folder.
+- Open `Ollama.app` and follow any prompts.
+
+3. **Download the Model**
+
+Open Terminal and execute:
+
+```bash
+ollama pull macsdeve/BetterBash3
+```
+
+## Additional Notes
+
+- Make sure you have enough disk space.
+- See more details on the [official Ollama website](https://ollama.com).
+
+
+
+
+
 ## License
 
 [MIT License](LICENSE)
