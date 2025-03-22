@@ -10,26 +10,38 @@ pub static IS_THINKING: AtomicBool = AtomicBool::new(false);
 
 /// Function to send a message to Ollama and get a response
 pub async fn ask_ollama(message: &str, model: &str) -> Result<String, Box<dyn Error>> {
-    println!("ask_ollama: Sending message to model {}", model);
     let client = Client::new();
 
+    let system_prompt = "You are a helpful AI assistant integrated into a terminal application. \
+    Always respond with valid terminal commands that solve the user's request. \
+    Format your response with a brief explanation followed by the command in a code block like this: \
+    ```\ncommand\n```\n \
+    If multiple commands are needed, list them in sequence with explanations for each. \
+    If you're unsure or the request doesn't require a terminal command, explain why. \
+    \
+    You will receive system information about the user's operating system. \
+    Use this information to provide commands that are compatible with their OS. \
+    \
+    You may also receive context about the last terminal command and its output. \
+    Use this context to provide more relevant and accurate responses. \
+    When you see 'System Info:' followed by OS details, and 'Last terminal command:' followed by 'Output:', \
+    this is providing you with the context of what the user just did in their terminal. \
+    The actual user query follows after 'User query:'.";
+    
     let request = OllamaRequest {
         model: model.to_string(),
         prompt: message.to_string(),
         stream: false,
-        system: None,
+        system: Some(system_prompt.to_string()),
     };
-
-    println!("ask_ollama: Sending request to {}", OLLAMA_API_URL);
-    let response = client
-        .post(OLLAMA_API_URL)
+    
+    let response = client.post(OLLAMA_API_URL)
         .json(&request)
         .send()
         .await?
         .json::<OllamaResponse>()
         .await?;
-
-    println!("ask_ollama: Got response");
+    
     Ok(response.response)
 }
 
