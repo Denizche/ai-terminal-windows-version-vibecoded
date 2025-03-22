@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write, Read};
 use iced::Command as IcedCommand;
 use crate::app::Message;
 use crate::ui::components::scrollable_container;
@@ -212,32 +212,104 @@ impl App {
                 let stdout = child.stdout.take().expect("Failed to open stdout");
                 let stderr = child.stderr.take().expect("Failed to open stderr");
                 
-                // Use BufReader to read lines from stdout and stderr
-                let stdout_reader = std::io::BufReader::new(stdout);
-                let stderr_reader = std::io::BufReader::new(stderr);
+                // Create channels for stdout and stderr processing
+                let (stdout_tx, stdout_rx) = mpsc::channel();
+                let (stderr_tx, stderr_rx) = mpsc::channel();
                 
-                // Handle stdout in a separate thread
-                let stdout_lines = stdout_reader.lines();
-                for line in stdout_lines.flatten() {
-                    result.push(line.clone());
-                    self.output.push(line);
+                // Thread for stdout
+                let stdout_tx = stdout_tx.clone();
+                thread::spawn(move || {
+                    let reader = BufReader::new(stdout);
+                    for line in reader.lines() {
+                        match line {
+                            Ok(line) => {
+                                // Send each line immediately
+                                if !line.trim().is_empty() {
+                                    if stdout_tx.send(line).is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                });
+                
+                // Thread for stderr
+                let stderr_tx = stderr_tx.clone();
+                thread::spawn(move || {
+                    let reader = BufReader::new(stderr);
+                    for line in reader.lines() {
+                        match line {
+                            Ok(line) => {
+                                // Send each line immediately
+                                if !line.trim().is_empty() {
+                                    if stderr_tx.send(line).is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                });
+                
+                // Process output with a timeout to ensure UI responsiveness
+                let timeout = std::time::Duration::from_millis(100);
+                let mut received_output = true;
+                
+                while received_output {
+                    received_output = false;
                     
-                    // Signal to the UI to refresh
-                    crate::app::Message::ScrollToBottom;
+                    // Process stdout
+                    while let Ok(line) = stdout_rx.try_recv() {
+                        received_output = true;
+                        result.push(line.clone());
+                        self.output.push(line);
+                    }
+                    
+                    // Process stderr
+                    while let Ok(line) = stderr_rx.try_recv() {
+                        received_output = true;
+                        // Avoid double "Error:" prefix
+                        let error_line = if line.trim_start().starts_with("Error:") {
+                            line.clone()
+                        } else {
+                            format!("Error: {}", line)
+                        };
+                        result.push(error_line.clone());
+                        self.output.push(error_line);
+                    }
+                    
+                    // Check if the process has completed
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            // Process is done
+                            let success = status.success();
+                            if !success {
+                                let status_msg = format!("Command exited with status: {}", status);
+                                result.push(status_msg.clone());
+                                self.output.push(status_msg);
+                            }
+                            return (result, success);
+                        }
+                        Ok(None) => {
+                            // Process is still running
+                            if !received_output {
+                                // No new output, yield to allow UI updates
+                                std::thread::sleep(timeout);
+                            }
+                        }
+                        Err(e) => {
+                            let error_msg = format!("Error checking command status: {}", e);
+                            result.push(error_msg.clone());
+                            self.output.push(error_msg);
+                            return (result, false);
+                        }
+                    }
                 }
                 
-                // Handle stderr in a separate thread
-                let stderr_lines = stderr_reader.lines();
-                for line in stderr_lines.flatten() {
-                    let error_line = format!("Error: {}", line);
-                    result.push(error_line.clone());
-                    self.output.push(error_line);
-                    
-                    // Signal to the UI to refresh
-                    crate::app::Message::ScrollToBottom;
-                }
-                
-                // Wait for the command to complete
+                // Wait for the command to complete if we exited the loop
                 match child.wait() {
                     Ok(status) => {
                         let success = status.success();
@@ -370,36 +442,57 @@ impl App {
 
                     // Thread for stdout
                     let stdout_tx = tx.clone();
-                    let stdout_thread = thread::spawn(move || {
+                    thread::spawn(move || {
                         let reader = BufReader::new(stdout);
-                        for line in reader.lines().flatten() {
-                            stdout_tx.send(format!("{}", line)).ok();  // Remove "Output: " prefix
+                        for line in reader.lines() {
+                            match line {
+                                Ok(line) => {
+                                    // Send each line immediately
+                                    if !line.trim().is_empty() {
+                                        if stdout_tx.send(line).is_err() {
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(_) => break,
+                            }
                         }
                     });
 
                     // Thread for stderr
                     let stderr_tx = tx.clone();
-                    let stderr_thread = thread::spawn(move || {
+                    thread::spawn(move || {
                         let reader = BufReader::new(stderr);
-                        for line in reader.lines().flatten() {
-                            // Don't prefix error messages unless they're actual errors
-                            if line.to_lowercase().contains("error") {
-                                stderr_tx.send(format!("Error: {}", line)).ok();
-                            } else {
-                                stderr_tx.send(line).ok();
+                        for line in reader.lines() {
+                            match line {
+                                Ok(line) => {
+                                    // Send each line immediately
+                                    if !line.trim().is_empty() {
+                                        if stderr_tx.send(line).is_err() {
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(_) => break,
                             }
                         }
                     });
 
-                    // Wait for the command to finish
-                    let status = child.wait().expect("Command wasn't running");
-                    
-                    // Wait for threads to finish
-                    stdout_thread.join().ok();
-                    stderr_thread.join().ok();
-                    input_thread.join().ok();
-                    
-                    tx.send(format!("__COMMAND_COMPLETE__{}", status.success())).ok();
+                    // Wait for the command to finish in a background task
+                    let status_tx = tx.clone();
+                    thread::spawn(move || {
+                        // Wait for the process to complete
+                        match child.wait() {
+                            Ok(status) => {
+                                // Send completion message
+                                status_tx.send(format!("__COMMAND_COMPLETE__{}", status.success())).ok();
+                            },
+                            Err(_) => {
+                                // Error waiting for process
+                                status_tx.send("__COMMAND_COMPLETE__false".to_string()).ok();
+                            }
+                        }
+                    });
                 }
                 Err(e) => {
                     tx.send(format!("Failed to execute command: {}", e)).ok();
@@ -419,7 +512,7 @@ impl App {
     
     // New method to poll for command output
     pub fn poll_command_output(&mut self) -> Option<IcedCommand<Message>> {
-        if let Some((rx, command_index, command, output_lines, _input_tx)) = &self.command_receiver {
+        if let Some((rx, command_index, command, output_lines, input_tx)) = &self.command_receiver {
             // Try to receive a message without taking ownership
             let result = {
                 let rx_lock = rx.lock().unwrap();

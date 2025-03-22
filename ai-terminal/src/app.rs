@@ -128,11 +128,11 @@ impl Application for TerminalApp {
                 move |state| async move {
                     match state {
                         State::Ready => {
-                            tokio::time::sleep(Duration::from_millis(10)).await;
+                            tokio::time::sleep(Duration::from_millis(1)).await;
                             (Message::PollCommandOutput, State::Waiting)
                         }
                         State::Waiting => {
-                            tokio::time::sleep(Duration::from_millis(10)).await;
+                            tokio::time::sleep(Duration::from_millis(1)).await;
                             (Message::PollCommandOutput, State::Waiting)
                         }
                     }
@@ -538,11 +538,15 @@ impl TerminalApp {
         // Create styled blocks
         let output_elements: Element<_> = column(
             blocks.iter().enumerate().map(|(i, block)| {
-                // Always use the default command block style, regardless of status
-                let style = DraculaTheme::command_block_style();
-                
                 // Check if this block has a failure status for coloring the command line
                 let has_failed = i < block_status.len() && block_status[i] == CommandStatus::Failure;
+                
+                // Use different block style based on command success/failure
+                let style = if has_failed {
+                    DraculaTheme::failure_command_block_style()
+                } else {
+                    DraculaTheme::command_block_style()
+                };
 
                 container(
                     column(
