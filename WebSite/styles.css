@@ -579,7 +579,7 @@ footer {
     .demo-terminal {
         display: none;
     }
-    
+
     .video-container {
         margin-bottom: 0;
     }
@@ -1062,4 +1062,120 @@ body.light-theme .ai-response code {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Ollama Guide Section */
+#ollama-guide {
+    padding: 80px 0;
+    background-color: #f8f9fa;
+}
+
+#ollama-guide .title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 50px;
+    color: var(--dark-color);
+}
+
+#ollama-guide .columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+    margin-bottom: 40px;
+}
+
+#ollama-guide .column {
+    flex: 1;
+    min-width: 300px;
+    max-width: 380px;
+}
+
+#ollama-guide .box {
+    background-color: white;
+    border-radius: 10px;
+    padding: 25px;
+    height: 100%;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+#ollama-guide .box:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+#ollama-guide .subtitle {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    color: var(--primary-color);
+    text-align: center;
+}
+
+#ollama-guide ol {
+    padding-left: 20px;
+}
+
+#ollama-guide li {
+    margin-bottom: 15px;
+}
+
+#ollama-guide pre {
+    background-color: #f1f1f1;
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin: 10px 0;
+}
+
+#ollama-guide code {
+    color: var(--accent-color);
+}
+
+#ollama-guide .content {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+#ollama-guide a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+#ollama-guide a:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    #ollama-guide .columns {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    #ollama-guide .column {
+        width: 100%;
+    }
+}
+
+/* Active menu link */
+.nav-links li a.active {
+    color: var(--primary-color);
+    font-weight: 600;
+    position: relative;
+}
+
+.nav-links li a.active::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: var(--primary-color);
 }
