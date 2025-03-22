@@ -24,4 +24,4 @@ AI Terminal is a Rust-based application that enhances your terminal
 experience with AI capabilities.
 """
 copyright = "© 2024"
-deb_depends = ["libgtk-3-0", "libwebkit2gtk-4.0-37"]
+deb_depends = ["libgtk-3-0", "libwebkit2gtk-4.1-0"]

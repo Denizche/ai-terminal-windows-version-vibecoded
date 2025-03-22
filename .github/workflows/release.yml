@@ -21,27 +21,36 @@ jobs:
       - name: Install cargo-bundle
         run: cargo install cargo-bundle
       
-      - name: Build Universal Binary
+      - name: Build for x86_64
         run: |
           cd ai-terminal
           cargo build --release --target x86_64-apple-darwin
+      
+      - name: Build for aarch64
+        run: |
+          cd ai-terminal
           cargo build --release --target aarch64-apple-darwin
-          mkdir -p target/universal-apple-darwin/release
+      
+      - name: Create Universal Binary
+        run: |
+          cd ai-terminal
+          mkdir -p target/release
           lipo -create \
             target/x86_64-apple-darwin/release/ai-terminal \
             target/aarch64-apple-darwin/release/ai-terminal \
-            -output target/universal-apple-darwin/release/ai-terminal
+            -output target/release/ai-terminal
       
       - name: Create DMG
         run: |
           cd ai-terminal
-          cargo bundle --release --target universal-apple-darwin
+          # Use the default target for bundle creation
+          cargo bundle --release
           
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: ai-terminal/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          path: ai-terminal/target/release/bundle/osx/*.dmg
           retention-days: 7
   
   build-linux:
@@ -58,7 +67,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       
       - name: Install cargo-bundle
         run: cargo install cargo-bundle

@@ -44,11 +44,11 @@ cargo build --release --target x86_64-apple-darwin
 cargo build --release --target aarch64-apple-darwin
 
 # Create universal binary
-mkdir -p target/universal-apple-darwin/release
+mkdir -p target/release
 lipo -create \
   target/x86_64-apple-darwin/release/ai-terminal \
   target/aarch64-apple-darwin/release/ai-terminal \
-  -output target/universal-apple-darwin/release/ai-terminal
+  -output target/release/ai-terminal
 ```
 
 To create a DMG package:
@@ -57,7 +57,7 @@ To create a DMG package:
 # Install cargo-bundle
 cargo install cargo-bundle
 
-# Create DMG
+# Create DMG (will use the universal binary created above)
 cargo bundle --release
 ```
 
@@ -68,7 +68,7 @@ To build a DEB package:
 ```bash
 # Install dependencies
 sudo apt-get update
-sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
 # Install cargo-bundle
 cargo install cargo-bundle
@@ -82,10 +82,11 @@ cargo bundle --release --format deb
 This project includes a GitHub Actions workflow that automatically builds packages for macOS (DMG) and Linux (DEB) when you push to the master branch.
 
 The workflow:
-1. Builds a universal binary for macOS
-2. Creates a DMG package for macOS
-3. Builds a DEB package for Linux
-4. Uploads these packages as artifacts
+1. Builds both Intel and Apple Silicon binaries for macOS
+2. Creates a universal binary by combining them
+3. Creates a DMG package for macOS
+4. Builds a DEB package for Linux
+5. Uploads these packages as artifacts
 
 You can find the built packages in the "Actions" tab of the GitHub repository after a successful workflow run.
 
