@@ -40,6 +40,7 @@ pub enum Message {
     NoOp,
     PasswordInput(String),
     SubmitPassword,
+    TerminateCommand,
 }
 
 pub struct TerminalApp {
@@ -85,6 +86,14 @@ impl Application for TerminalApp {
             fn handle(event: Event, _status: iced::event::Status) -> Option<Message> {
                 if let Event::Keyboard(key_event) = event {
                     match key_event {
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::C,
+                            modifiers,
+                            ..
+                        } if modifiers.control() => {
+                            // Handle Ctrl+C to terminate running commands
+                            return Some(Message::TerminateCommand);
+                        }
                         KeyEvent::KeyPressed {
                             key_code: keyboard::KeyCode::Tab,
                             modifiers,
@@ -492,6 +501,12 @@ impl Application for TerminalApp {
                 // Send the password to the running command
                 let password = std::mem::take(&mut self.password_buffer);
                 self.state.send_input(password);
+                Command::none()
+            }
+            Message::TerminateCommand => {
+                if let Some(cmd) = self.state.terminate_running_command() {
+                    return cmd;
+                }
                 Command::none()
             }
         }

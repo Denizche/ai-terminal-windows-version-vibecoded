@@ -71,38 +71,10 @@ impl App {
             self.command_status[command_index] = CommandStatus::Success;
             self.output.push(format!("> {}", command));
         } else {
-            // Check if this is a sudo command or other long-running command
-            let parts: Vec<&str> = command.split_whitespace().collect();
-            let is_long_running = !parts.is_empty() && (
-                parts[0] == "sudo" || parts[0] == "make" || parts[0] == "cargo" 
-                || parts[0] == "npm" || parts[0] == "yarn" || parts[0] == "apt" 
-                || parts[0] == "apt-get" || parts[0] == "yum" || parts[0] == "brew"
-                || parts[0] == "pip" || parts[0] == "pip3" || parts[0] == "python" 
-                || parts[0] == "python3" || parts[0] == "node" || parts[0] == "docker"
-                || parts[0] == "kubectl" || parts[0] == "ssh" || parts[0] == "scp"
-                || parts[0] == "rsync" || parts[0] == "git" || parts[0] == "mvn"
-                || parts[0] == "gradle" || parts[0] == "dotnet" || parts[0] == "terraform"
-                || parts[0] == "ansible" || parts[0] == "vagrant" || parts[0] == "composer"
-                || parts[0] == "ping"
-            );
-            
-            if is_long_running {
-                // For long-running commands, spawn the process and handle output asynchronously
-                self.spawn_streaming_command(command.to_string(), command_index);
-                return;
-            } else {
-                // Execute quick commands synchronously
-                let (output, success) = self.run_command(command);
-                self.output.extend(output.clone());
-                command_output = output;
-
-                // Update command status
-                if success {
-                    self.command_status[command_index] = CommandStatus::Success;
-                } else {
-                    self.command_status[command_index] = CommandStatus::Failure;
-                }
-            }
+            // Use streaming for all commands except for built-in commands
+            // that we've already handled (cd, clear)
+            self.spawn_streaming_command(command.to_string(), command_index);
+            return;
         }
 
         // Store the command and its output for context
@@ -147,62 +119,8 @@ impl App {
             })
             .collect();
 
-        // Check if this is likely a long-running command
-        let is_long_running = program == "sudo" || program == "make" || program == "cargo" 
-            || program == "npm" || program == "yarn" || program == "apt" 
-            || program == "apt-get" || program == "yum" || program == "brew"
-            || program == "pip" || program == "pip3" || program == "python" 
-            || program == "python3" || program == "node" || program == "docker"
-            || program == "kubectl" || program == "ssh" || program == "scp"
-            || program == "rsync" || program == "git" || program == "mvn"
-            || program == "gradle" || program == "dotnet" || program == "terraform"
-            || program == "ansible" || program == "vagrant" || program == "composer"
-            || program == "ping";
-        
-        if is_long_running {
-            // Use streaming execution for long-running commands
-            return self.run_streaming_command(program, &args);
-        }
-
-        // Execute the command synchronously (for quick commands)
-        match Command::new(program)
-            .args(&args)
-            .current_dir(&self.current_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-        {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-
-                // Add stdout to output
-                if !stdout.is_empty() {
-                    for line in stdout.lines() {
-                        result.push(line.to_string());
-                    }
-                }
-
-                // Add stderr to output
-                if !stderr.is_empty() {
-                    for line in stderr.lines() {
-                        result.push(format!("Error: {}", line));
-                    }
-                }
-
-                // Add exit status
-                if !output.status.success() {
-                    result.push(format!("Command exited with status: {}", output.status));
-                    success = false;
-                }
-            }
-            Err(e) => {
-                result.push(format!("Failed to execute command: {}", e));
-                success = false;
-            }
-        }
-
-        (result, success)
+        // Always use streaming execution for external commands
+        return self.run_streaming_command(program, &args);
     }
 
     // New method to handle streaming command execution
@@ -640,6 +558,35 @@ impl App {
                 self.password_mode = false;  // Disable password mode after sending
             }
         }
+    }
+
+    // Add this new method to the App impl
+    pub fn terminate_running_command(&mut self) -> Option<IcedCommand<Message>> {
+        if let Some((_, command_index, command, output_lines, _)) = &self.command_receiver {
+            // Make copies of the values we need
+            let command_index = *command_index;
+            let command = command.clone();
+            let output_lines = output_lines.clone();
+            
+            // Set command status to indicate interruption
+            if command_index < self.command_status.len() {
+                self.command_status[command_index] = CommandStatus::Interrupted;
+            }
+            
+            // Add message to output
+            self.output.push("^C Command interrupted".to_string());
+            
+            // Store the command and its partial output for context
+            self.last_terminal_context = Some((command, output_lines));
+            
+            // Clear command receiver and reset password mode
+            self.command_receiver = None;
+            self.password_mode = false;
+            
+            // Return command to scroll to bottom
+            return Some(scrollable_container::scroll_to_bottom());
+        }
+        None
     }
 }
 

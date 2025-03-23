@@ -38,11 +38,12 @@ pub enum Panel {
     Assistant,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CommandStatus {
+    Running,
     Success,
     Failure,
-    Running,
+    Interrupted,
 }
 
 // Main application state
