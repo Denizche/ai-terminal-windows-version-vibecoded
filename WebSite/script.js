@@ -201,7 +201,7 @@ echo "Backup completed!"</code></pre>
         });
     }, observerOptions);
 
-    document.querySelectorAll('.feature-card, .demo-terminal, .signup-content').forEach(el => {
+    document.querySelectorAll('.feature-card, .demo-terminal, .signup-content, #ollama-guide .box, #ollama-guide .content').forEach(el => {
         el.classList.add('fade-in');
         observer.observe(el);
     });
@@ -435,9 +435,15 @@ echo "Backup completed!"</code></pre>
             nav.appendChild(themeToggle);
         }
 
-        // Check for saved theme preference
+        // For Dracula theme, we'll always keep dark mode as default
+        // We'll still allow toggling for user preference, but modify effects
         const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'light') {
+        
+        // Default to dark theme (Dracula)
+        if (!savedTheme || savedTheme === 'dark') {
+            document.body.classList.remove('light-theme');
+            themeToggle.classList.remove('active');
+        } else if (savedTheme === 'light') {
             document.body.classList.add('light-theme');
             themeToggle.classList.add('active');
         }
@@ -599,4 +605,26 @@ echo "Backup completed!"</code></pre>
     }
 
     setupScrollSpy();
+
+    // Copy code function
+    function copyCode(button) {
+        const codeElement = button.previousElementSibling;
+        const codeText = codeElement.textContent;
+        
+        navigator.clipboard.writeText(codeText).then(() => {
+            // Change button text temporarily
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            
+            // Revert back after 2 seconds
+            setTimeout(() => {
+                button.textContent = originalText;
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    }
+
+    // Make copyCode function globally available
+    window.copyCode = copyCode;
 }); 

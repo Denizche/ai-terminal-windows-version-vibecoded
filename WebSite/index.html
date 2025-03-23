@@ -9,10 +9,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
-<body>
+<body class="dracula-theme">
     <header>
         <nav>
-            <div class="logo">ai-<span>terminal</span></div>
+            <div class="logo">
+                <img src="icon.png" alt="AI Terminal Icon" class="logo-icon">
+                ai-<span>terminal</span>
+            </div>
             <ul class="nav-links">
                 <li><a href="#features">Features</a></li>
                 <li><a href="#demo">Demo</a></li>
@@ -30,7 +33,7 @@
     <section class="hero">
         <div class="container">
             <div class="hero-content">
-                <h1>Your Terminal, <span>Supercharged</span> with AI</h1>
+                <h1>Your <span>AI Mate</span> inside your favorite terminal</h1>
                 <p>Navigate the command line with confidence. ai-terminal is your intelligent assistant that helps you
                     work faster and smarter in the terminal.</p>
                 <div class="cta-buttons">
@@ -38,85 +41,7 @@
                 </div>
             </div>
             <div class="hero-image">
-                <div class="terminal">
-                    <div class="terminal-header">
-                        <div class="terminal-buttons">
-                            <span class="close"></span>
-                            <span class="minimize"></span>
-                            <span class="maximize"></span>
-                        </div>
-                        <div class="terminal-title">user@ai-terminal:~</div>
-                    </div>
-                    <div class="terminal-body">
-                        <div class="terminal-left">
-                            <div class="line">
-                                <span class="prompt">$</span>
-                                <span class="command">ls -la</span>
-                            </div>
-                            <div class="terminal-output">
-                                total 32
-                                drwxr-xr-x 5 user staff 160 Apr 10 14:22 .
-                                drwxr-xr-x 3 user staff 96 Apr 10 13:45 ..
-                                -rw-r--r-- 1 user staff 2489 Apr 10 14:21 config.json
-                                drwxr-xr-x 8 user staff 256 Apr 10 14:20 node_modules
-                                -rw-r--r-- 1 user staff 528 Apr 10 14:19 package.json
-                                drwxr-xr-x 4 user staff 128 Apr 10 14:18 src
-                                drwxr-xr-x 3 user staff 96 Apr 10 14:18 tests
-                            </div>
-                            <div class="line">
-                                <span class="prompt">$</span>
-                                <span class="command">cd projects</span>
-                            </div>
-                            <div class="line">
-                                <span class="prompt">$</span>
-                                <span class="command">find . -type f -size +10M | sort -rh | head -n 5</span>
-                            </div>
-                            <div class="terminal-output">
-                                ./videos/demo.mp4
-                                ./images/background.png
-                                ./data/logs.db
-                                ./node_modules/some-package/dist/bundle.js
-                                ./backups/backup-20230401.tar.gz
-                            </div>
-                            <div class="line">
-                                <span class="prompt">$</span>
-                                <span class="command">grep -r "TODO" .</span>
-                            </div>
-                            <div class="terminal-output">
-                                ./src/app.js:45: // TODO: Implement error handling
-                                ./src/utils/helpers.js:23: // TODO: Optimize this function
-                                ./src/components/main.js:102: /* TODO: Add responsive design */
-                                ./tests/api.test.js:78: // TODO: Add more test cases
-                            </div>
-                            <div class="line">
-                                <span class="prompt">$</span>
-                                <span class="command"></span>
-                            </div>
-                        </div>
-                        <div class="terminal-right">
-                            <div class="terminal-right-header">AI Assistant</div>
-                            <div class="ai-response-area">
-                                <div class="user-query">help me find large files</div>
-                                <div class="ai-response">
-                                    I can help with that. Here's a command to find the largest files in the current
-                                    directory:
-                                    <pre><code>find . -type f -size +10M | sort -rh | head -n 5</code></pre>
-                                    This will show the 5 largest files over 10MB.
-                                </div>
-                                <div class="user-query">find TODOs in my code</div>
-                                <div class="ai-response">
-                                    To find all TODOs in your codebase, you can use grep:
-                                    <pre><code>grep -r "TODO" .</code></pre>
-                                    This will recursively search for "TODO" in all files in the current directory.
-                                </div>
-                            </div>
-                            <div class="ai-input-area">
-                                <input type="text" placeholder="Ask the AI assistant..." disabled>
-                                <button disabled><i class="fas fa-paper-plane"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <img src="ai-terminal-screen.png" alt="AI Terminal Screen" class="terminal-screen-image">
             </div>
         </div>
     </section>
@@ -258,7 +183,7 @@
         </div>
     </section>
 
-    <section id="ollama-guide" class="section">
+    <section id="ollama-guide" class="ollama-guide" style="display: block !important; visibility: visible !important;">
         <div class="container">
             <h2 class="title">Quick Guide to Ollama</h2>
 
@@ -321,18 +246,6 @@
                         </ol>
                     </div>
                 </div>
-            </div>
-
-            <div class="content">
-                <h3 class="subtitle">Additional Notes</h3>
-                <ul>
-                    <li>Make sure you have enough disk space for the models.</li>
-                    <li>For more details, visit the <a href="https://ollama.com" target="_blank">official Ollama
-                            website</a>.</li>
-                    <li>After installing the model, you can use it with AI Terminal or directly from the terminal with
-                        <code>ollama run macsdeve/BetterBash3</code>.
-                    </li>
-                </ul>
             </div>
         </div>
     </section>
