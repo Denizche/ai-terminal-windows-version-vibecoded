@@ -4,12 +4,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Mobile menu toggle
     const hamburger = document.querySelector('.hamburger');
-    const navLinks = document.querySelector('.nav-links');
+    const mobileMenu = document.querySelector('.mobile-menu');
+    const navLinks = document.querySelector('nav .nav-links');
+    const mobileNavLinks = document.querySelector('.mobile-menu .nav-links');
 
     if (hamburger) {
         hamburger.addEventListener('click', () => {
-            navLinks.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
             hamburger.classList.toggle('active');
+        });
+    }
+
+    // Handle mobile menu link clicks
+    if (mobileNavLinks) {
+        mobileNavLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.remove('active');
+                hamburger.classList.remove('active');
+            });
         });
     }
 
@@ -27,12 +39,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     top: targetElement.offsetTop - 80,
                     behavior: 'smooth'
                 });
-
-                // Close mobile menu if open
-                if (navLinks.classList.contains('active')) {
-                    navLinks.classList.remove('active');
-                    hamburger.classList.remove('active');
-                }
             }
         });
     });
@@ -417,49 +423,6 @@ echo "Backup completed!"</code></pre>
     }
 
     setupTypingAnimation();
-
-    // Add theme toggle functionality
-    function setupThemeToggle() {
-        // Create the theme toggle button
-        const themeToggle = document.createElement('div');
-        themeToggle.classList.add('theme-toggle');
-        themeToggle.innerHTML = `
-            <i class="fas fa-moon"></i>
-            <span class="toggle-slider"></span>
-            <i class="fas fa-sun"></i>
-        `;
-
-        // Add it to the navigation
-        const nav = document.querySelector('nav');
-        if (nav) {
-            nav.appendChild(themeToggle);
-        }
-
-        // For Dracula theme, we'll always keep dark mode as default
-        // We'll still allow toggling for user preference, but modify effects
-        const savedTheme = localStorage.getItem('theme');
-        
-        // Default to dark theme (Dracula)
-        if (!savedTheme || savedTheme === 'dark') {
-            document.body.classList.remove('light-theme');
-            themeToggle.classList.remove('active');
-        } else if (savedTheme === 'light') {
-            document.body.classList.add('light-theme');
-            themeToggle.classList.add('active');
-        }
-
-        // Toggle theme on click
-        themeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('light-theme');
-            themeToggle.classList.toggle('active');
-
-            // Save preference
-            const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
-            localStorage.setItem('theme', currentTheme);
-        });
-    }
-
-    setupThemeToggle();
 
     // Add particle background effect to the hero section
     function setupParticleBackground() {
