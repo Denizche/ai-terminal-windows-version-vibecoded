@@ -71,31 +71,10 @@ impl App {
             self.command_status[command_index] = CommandStatus::Success;
             self.output.push(format!("> {}", command));
         } else {
-            // Check if this is a sudo command or other long-running command
-            let parts: Vec<&str> = command.split_whitespace().collect();
-            let is_long_running = !parts.is_empty() && (
-                parts[0] == "sudo" || parts[0] == "make" || parts[0] == "cargo" 
-                || parts[0] == "npm" || parts[0] == "yarn" || parts[0] == "apt" 
-                || parts[0] == "apt-get" || parts[0] == "yum" || parts[0] == "brew"
-            );
-            
-            if is_long_running {
-                // For long-running commands, spawn the process and handle output asynchronously
-                self.spawn_streaming_command(command.to_string(), command_index);
-                return;
-            } else {
-                // Execute quick commands synchronously
-                let (output, success) = self.run_command(command);
-                self.output.extend(output.clone());
-                command_output = output;
-
-                // Update command status
-                if success {
-                    self.command_status[command_index] = CommandStatus::Success;
-                } else {
-                    self.command_status[command_index] = CommandStatus::Failure;
-                }
-            }
+            // Use streaming for all commands except for built-in commands
+            // that we've already handled (cd, clear)
+            self.spawn_streaming_command(command.to_string(), command_index);
+            return;
         }
 
         // Store the command and its output for context
@@ -140,55 +119,8 @@ impl App {
             })
             .collect();
 
-        // Check if this is likely a long-running command
-        let is_long_running = program == "sudo" || program == "make" || program == "cargo" 
-            || program == "npm" || program == "yarn" || program == "apt" 
-            || program == "apt-get" || program == "yum" || program == "brew";
-        
-        if is_long_running {
-            // Use streaming execution for long-running commands
-            return self.run_streaming_command(program, &args);
-        }
-
-        // Execute the command synchronously (for quick commands)
-        match Command::new(program)
-            .args(&args)
-            .current_dir(&self.current_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-        {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-
-                // Add stdout to output
-                if !stdout.is_empty() {
-                    for line in stdout.lines() {
-                        result.push(line.to_string());
-                    }
-                }
-
-                // Add stderr to output
-                if !stderr.is_empty() {
-                    for line in stderr.lines() {
-                        result.push(format!("Error: {}", line));
-                    }
-                }
-
-                // Add exit status
-                if !output.status.success() {
-                    result.push(format!("Command exited with status: {}", output.status));
-                    success = false;
-                }
-            }
-            Err(e) => {
-                result.push(format!("Failed to execute command: {}", e));
-                success = false;
-            }
-        }
-
-        (result, success)
+        // Always use streaming execution for external commands
+        return self.run_streaming_command(program, &args);
     }
 
     // New method to handle streaming command execution
@@ -244,12 +176,21 @@ impl App {
                             Ok(line) => {
                                 // Send each line immediately
                                 if !line.trim().is_empty() {
+                                    println!("DEBUG: Stderr line: '{}'", line);
+                                    // Check specifically for password prompts in stderr
+                                    if line.contains("password") || line.contains("Password") || 
+                                       line.contains("[sudo]") {
+                                        println!("DEBUG: Password prompt detected in stderr!");
+                                    }
                                     if stderr_tx.send(line).is_err() {
                                         break;
                                     }
                                 }
                             }
-                            Err(_) => break,
+                            Err(e) => {
+                                println!("DEBUG: Error reading stderr: {:?}", e);
+                                break;
+                            }
                         }
                     }
                 });
@@ -402,12 +343,33 @@ impl App {
         let (input_tx, input_rx) = mpsc::channel::<String>();
         let input_tx_clone = input_tx.clone();
         
+        // Check if this is a sudo command, but don't immediately enable password mode
+        let is_sudo = command.trim().starts_with("sudo ");
+        
         thread::spawn(move || {
             let parts: Vec<&str> = command_clone.split_whitespace().collect();
             
             let mut cmd = if parts[0] == "sudo" {
+                println!("DEBUG: Creating sudo command");
                 let mut cmd = Command::new("sudo");
-                cmd.arg("-S"); // Force sudo to read password from stdin
+                
+                // First check if sudo needs a password with -n flag
+                let needs_password = {
+                    let mut check_cmd = Command::new("sudo");
+                    check_cmd.arg("-n"); // Non-interactive - will fail if password is needed
+                    check_cmd.arg("true");
+                    !check_cmd.status().map(|s| s.success()).unwrap_or(false)
+                };
+                
+                println!("DEBUG: Sudo needs password: {}", needs_password);
+                
+                // If password is needed, send a message to enable password mode
+                if needs_password {
+                    tx.send("[sudo] password required:".to_string()).ok();
+                }
+                
+                // Configure sudo command
+                cmd.arg("-S"); // Read from stdin
                 if parts.len() > 1 {
                     cmd.args(&parts[1..]);
                 }
@@ -424,7 +386,7 @@ impl App {
                .stdout(Stdio::piped())
                .stderr(Stdio::piped())
                .stdin(Stdio::piped());
-
+               
             match cmd.spawn() {
                 Ok(mut child) => {
                     let stdout = child.stdout.take().expect("Failed to open stdout");
@@ -521,10 +483,17 @@ impl App {
             
             match result {
                 Ok(line) => {
+                    // Add debug print
+                    println!("DEBUG: Received line from command: '{}'", line);
+                    
                     // Check for password prompts
-                    if line.contains("[sudo] password for") || line.contains("Password:") {
+                    if line.contains("[sudo] password for") || line.contains("Password:") || 
+                       line.contains("password:") || line.contains("password for") || 
+                       line.contains("password di") || line.contains("password per") ||
+                       line.contains("[sudo]") {
+                        println!("DEBUG: Password prompt detected!");
                         self.password_mode = true;
-                        // Don't add the password prompt to output to avoid duplicates
+                        self.output.push(line.clone());  // Add the password prompt to output
                         return Some(scrollable_container::scroll_to_bottom());
                     }
                     
@@ -584,10 +553,40 @@ impl App {
     pub fn send_input(&mut self, input: String) {
         if let Some((_, _, _, _, input_tx)) = &self.command_receiver {
             if input_tx.send(input).is_ok() {
+                // Don't echo the actual password, just show asterisks
                 self.output.push("*****".to_string());
                 self.password_mode = false;  // Disable password mode after sending
             }
         }
+    }
+
+    // Add this new method to the App impl
+    pub fn terminate_running_command(&mut self) -> Option<IcedCommand<Message>> {
+        if let Some((_, command_index, command, output_lines, _)) = &self.command_receiver {
+            // Make copies of the values we need
+            let command_index = *command_index;
+            let command = command.clone();
+            let output_lines = output_lines.clone();
+            
+            // Set command status to indicate interruption
+            if command_index < self.command_status.len() {
+                self.command_status[command_index] = CommandStatus::Interrupted;
+            }
+            
+            // Add message to output
+            self.output.push("^C Command interrupted".to_string());
+            
+            // Store the command and its partial output for context
+            self.last_terminal_context = Some((command, output_lines));
+            
+            // Clear command receiver and reset password mode
+            self.command_receiver = None;
+            self.password_mode = false;
+            
+            // Return command to scroll to bottom
+            return Some(scrollable_container::scroll_to_bottom());
+        }
+        None
     }
 }
 
