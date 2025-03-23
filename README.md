@@ -1,6 +1,8 @@
 # AI Terminal
 
 A Rust-based terminal application with integrated AI capabilities.
+<img width="1207" alt="image" src="https://github.com/user-attachments/assets/703832ae-360d-4bc5-9d8b-339a282d05ff" />
+
 
 ## Features
 
