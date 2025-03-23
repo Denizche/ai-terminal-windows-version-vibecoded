@@ -41,6 +41,7 @@ pub enum Message {
     PasswordInput(String),
     SubmitPassword,
     TerminateCommand,
+    ToggleShortcutsModal,
 }
 
 pub struct TerminalApp {
@@ -52,6 +53,7 @@ pub struct TerminalApp {
     suggestion_index: usize,
     password_buffer: String,
     password_mode: bool,
+    show_shortcuts_modal: bool,
 }
 
 impl Application for TerminalApp {
@@ -71,6 +73,7 @@ impl Application for TerminalApp {
                 suggestion_index: 0,
                 password_buffer: String::new(),
                 password_mode: false,
+                show_shortcuts_modal: false,
             },
             Command::none(),
         )
@@ -509,6 +512,10 @@ impl Application for TerminalApp {
                 }
                 Command::none()
             }
+            Message::ToggleShortcutsModal => {
+                self.show_shortcuts_modal = !self.show_shortcuts_modal;
+                Command::none()
+            }
         }
     }
 
@@ -516,7 +523,8 @@ impl Application for TerminalApp {
         let terminal_panel = self.view_terminal_panel();
         let ai_panel = self.view_ai_panel();
 
-        row![
+        // Build the main content
+        let content = row![
             container(terminal_panel)
                 .width(Length::FillPortion(self.state.panel_ratio as u16))
                 .height(Length::Fill)
@@ -527,8 +535,27 @@ impl Application for TerminalApp {
                 .height(Length::Fill)
                 .style(DraculaTheme::container_style()),
         ]
-        .height(Length::Fill)
-        .into()
+        .height(Length::Fill);
+
+        // If modal is visible, show it centered without a backdrop
+        if self.show_shortcuts_modal {
+            // Create a floating container for the modal
+            container(
+                container(self.view_shortcuts_modal())
+                    .width(Length::Fixed(450.0))
+                    .padding(20)
+                    .style(DraculaTheme::modal_style())
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x()
+            .center_y()
+            .style(DraculaTheme::transparent_container_style())
+            .into()
+        } else {
+            // Just show the normal content
+            content.into()
+        }
     }
 }
 
@@ -605,6 +632,18 @@ impl TerminalApp {
 
         let terminal_output = components::scrollable_container::scrollable_container(output_elements);
 
+        // Add shortcuts button at the top
+        let shortcuts_button = iced::widget::button(text("Shortcuts").size(14))
+            .on_press(Message::ToggleShortcutsModal)
+            .padding([4, 8])
+            .style(DraculaTheme::button_style());
+
+        let button_container = container(shortcuts_button)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .padding([5, 10])
+            .style(DraculaTheme::transparent_container_style());
+
         let dir_path = if let Some(home) = dirs_next::home_dir() {
             if let Ok(path) = self.state.current_dir.strip_prefix(&home) {
                 format!("~/{}", path.display())
@@ -667,6 +706,7 @@ impl TerminalApp {
         };
 
         column![
+            button_container,
             terminal_output,
             current_dir,
             input,
@@ -805,6 +845,92 @@ impl TerminalApp {
                 // ... existing AI chat input handling ...
             }
         }
+    }
+
+    fn view_shortcuts_modal(&self) -> Element<Message> {
+        // Create a modal with shortcut information
+        column![
+            // Modal title
+            container(
+                row![
+                    text("Keyboard Shortcuts")
+                        .size(20)
+                        .style(DraculaTheme::PURPLE),
+                    iced::widget::horizontal_space(Length::Fill),
+                    iced::widget::button(text("Close").size(14))
+                        .on_press(Message::ToggleShortcutsModal)
+                        .padding(5)
+                        .style(DraculaTheme::close_button_style())
+                ]
+                .spacing(10)
+                .width(Length::Fill)
+            )
+            .width(Length::Fill)
+            .padding(5),
+            
+            // Section: Navigation
+            container(
+                column![
+                    text("Navigation").size(16).style(DraculaTheme::PINK),
+                    self.shortcut_row("Ctrl+E", "Toggle focus between terminal and AI chat"),
+                    self.shortcut_row("Alt+Left", "Decrease terminal panel width"),
+                    self.shortcut_row("Alt+Right", "Increase terminal panel width"),
+                ]
+                .spacing(8)
+            )
+            .width(Length::Fill)
+            .padding(10),
+            
+            // Section: History
+            container(
+                column![
+                    text("History").size(16).style(DraculaTheme::PINK),
+                    self.shortcut_row("Up", "Previous command in history"),
+                    self.shortcut_row("Down", "Next command in history"),
+                ]
+                .spacing(8)
+            )
+            .width(Length::Fill)
+            .padding(10),
+            
+            // Section: Commands
+            container(
+                column![
+                    text("Commands").size(16).style(DraculaTheme::PINK),
+                    self.shortcut_row("Tab", "Autocomplete command"),
+                    self.shortcut_row("Ctrl+C", "Terminate running command"),
+                    self.shortcut_row("Shift+`", "Insert tilde character"),
+                ]
+                .spacing(8)
+            )
+            .width(Length::Fill)
+            .padding(10),
+        ]
+        .spacing(10)
+        .width(Length::Fill)
+        .into()
+    }
+    
+    // Helper method to create a shortcut row
+    fn shortcut_row<'a>(&self, shortcut: &str, description: &str) -> Element<'a, Message> {
+        row![
+            container(
+                text(shortcut)
+                    .size(14)
+                    .style(DraculaTheme::CYAN)
+            )
+            .width(Length::Fixed(120.0))
+            .padding(5)
+            .style(DraculaTheme::shortcut_key_style()),
+            text(description)
+                .size(14)
+                .style(DraculaTheme::FOREGROUND)
+                .width(Length::Fill)
+        ]
+        .align_items(iced::alignment::Alignment::Center)
+        .spacing(10)
+        .width(Length::Fill)
+        .into()
     }
 }
 

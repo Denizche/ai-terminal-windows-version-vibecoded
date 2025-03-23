@@ -228,7 +228,7 @@ impl DraculaTheme {
 
     pub fn failure_command_block_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
         Box::new(|_| container::Appearance {
-            text_color: Some(Self::FOREGROUND),
+            text_color: None,
             background: Some(Background::Color(Color::from_rgba8(100, 40, 40, 0.15))),
             border_radius: 4.0.into(),
             border_width: 0.0,
@@ -252,5 +252,110 @@ impl DraculaTheme {
 
     pub fn yellow_text_style() -> iced::theme::Text {
         iced::theme::Text::Color(Color::from_rgb(0.945, 0.776, 0.459))
+    }
+
+    pub fn button_style() -> iced::theme::Button {
+        iced::theme::Button::Custom(Box::new(ButtonStyle))
+    }
+
+    pub fn close_button_style() -> iced::theme::Button {
+        iced::theme::Button::Custom(Box::new(CloseButtonStyle))
+    }
+
+    pub fn modal_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
+        Box::new(|_| container::Appearance {
+            text_color: None,
+            background: Some(Background::Color(Color::from_rgba(0.16, 0.17, 0.21, 0.90))),
+            border_radius: 8.0.into(),
+            border_width: 1.0,
+            border_color: Self::PURPLE,
+        })
+    }
+
+    pub fn modal_overlay_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
+        Box::new(|_| container::Appearance {
+            text_color: None,
+            background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.7))),
+            border_radius: 0.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+        })
+    }
+
+    pub fn shortcut_key_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
+        Box::new(|_| container::Appearance {
+            text_color: None,
+            background: Some(Background::Color(Self::CURRENT_LINE)),
+            border_radius: 4.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+        })
+    }
+
+    pub fn transparent_container_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
+        Box::new(|_| container::Appearance {
+            text_color: None,
+            background: None,
+            border_radius: 0.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+        })
+    }
+}
+
+struct ButtonStyle;
+
+impl iced::widget::button::StyleSheet for ButtonStyle {
+    type Style = Theme;
+
+    fn active(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+        iced::widget::button::Appearance {
+            background: Some(Background::Color(DraculaTheme::PURPLE)),
+            text_color: DraculaTheme::FOREGROUND,
+            border_radius: 4.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+            shadow_offset: iced::Vector::new(0.0, 0.0),
+        }
+    }
+    
+    fn hovered(&self, style: &Self::Style) -> iced::widget::button::Appearance {
+        let active = self.active(style);
+        iced::widget::button::Appearance {
+            background: Some(Background::Color(Color::from_rgb(
+                0xCE as f32 / 255.0,
+                0xA4 as f32 / 255.0,
+                0xFF as f32 / 255.0,
+            ))),
+            ..active
+        }
+    }
+}
+
+struct CloseButtonStyle;
+impl iced::widget::button::StyleSheet for CloseButtonStyle {
+    type Style = Theme;
+
+    fn active(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+        iced::widget::button::Appearance {
+            background: Some(Background::Color(DraculaTheme::RED)),
+            text_color: DraculaTheme::FOREGROUND,
+            border_radius: 4.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+            shadow_offset: iced::Vector::new(0.0, 0.0),
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> iced::widget::button::Appearance {
+        let active = self.active(style);
+        iced::widget::button::Appearance {
+            background: Some(Background::Color(Color::from_rgb(
+                0xFF as f32 / 255.0,
+                0x35 as f32 / 255.0,
+                0x35 as f32 / 255.0,
+            ))),
+            ..active
+        }
     }
 } 
