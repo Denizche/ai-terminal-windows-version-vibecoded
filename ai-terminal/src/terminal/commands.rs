@@ -77,6 +77,13 @@ impl App {
                 parts[0] == "sudo" || parts[0] == "make" || parts[0] == "cargo" 
                 || parts[0] == "npm" || parts[0] == "yarn" || parts[0] == "apt" 
                 || parts[0] == "apt-get" || parts[0] == "yum" || parts[0] == "brew"
+                || parts[0] == "pip" || parts[0] == "pip3" || parts[0] == "python" 
+                || parts[0] == "python3" || parts[0] == "node" || parts[0] == "docker"
+                || parts[0] == "kubectl" || parts[0] == "ssh" || parts[0] == "scp"
+                || parts[0] == "rsync" || parts[0] == "git" || parts[0] == "mvn"
+                || parts[0] == "gradle" || parts[0] == "dotnet" || parts[0] == "terraform"
+                || parts[0] == "ansible" || parts[0] == "vagrant" || parts[0] == "composer"
+                || parts[0] == "ping"
             );
             
             if is_long_running {
@@ -143,7 +150,14 @@ impl App {
         // Check if this is likely a long-running command
         let is_long_running = program == "sudo" || program == "make" || program == "cargo" 
             || program == "npm" || program == "yarn" || program == "apt" 
-            || program == "apt-get" || program == "yum" || program == "brew";
+            || program == "apt-get" || program == "yum" || program == "brew"
+            || program == "pip" || program == "pip3" || program == "python" 
+            || program == "python3" || program == "node" || program == "docker"
+            || program == "kubectl" || program == "ssh" || program == "scp"
+            || program == "rsync" || program == "git" || program == "mvn"
+            || program == "gradle" || program == "dotnet" || program == "terraform"
+            || program == "ansible" || program == "vagrant" || program == "composer"
+            || program == "ping";
         
         if is_long_running {
             // Use streaming execution for long-running commands
