@@ -38,6 +38,8 @@ pub enum Message {
     PollCommandOutput,
     TabPressed,
     NoOp,
+    PasswordInput(String),
+    SubmitPassword,
 }
 
 pub struct TerminalApp {
@@ -47,6 +49,8 @@ pub struct TerminalApp {
     focus: FocusTarget,
     current_suggestions: Vec<String>,
     suggestion_index: usize,
+    password_buffer: String,
+    password_mode: bool,
 }
 
 impl Application for TerminalApp {
@@ -64,6 +68,8 @@ impl Application for TerminalApp {
                 focus: FocusTarget::Terminal,
                 current_suggestions: Vec::new(),
                 suggestion_index: 0,
+                password_buffer: String::new(),
+                password_mode: false,
             },
             Command::none(),
         )
@@ -475,6 +481,17 @@ impl Application for TerminalApp {
                 Command::none()
             }
             Message::NoOp => {
+                Command::none()
+            }
+            Message::PasswordInput(password) => {
+                // Store password temporarily (don't display it)
+                self.password_buffer = password;
+                Command::none()
+            }
+            Message::SubmitPassword => {
+                // Send the password to the running command
+                let password = std::mem::take(&mut self.password_buffer);
+                self.state.send_input(password);
                 Command::none()
             }
         }

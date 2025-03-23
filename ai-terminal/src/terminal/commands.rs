@@ -244,12 +244,21 @@ impl App {
                             Ok(line) => {
                                 // Send each line immediately
                                 if !line.trim().is_empty() {
+                                    println!("DEBUG: Stderr line: '{}'", line);
+                                    // Check specifically for password prompts in stderr
+                                    if line.contains("password") || line.contains("Password") || 
+                                       line.contains("[sudo]") {
+                                        println!("DEBUG: Password prompt detected in stderr!");
+                                    }
                                     if stderr_tx.send(line).is_err() {
                                         break;
                                     }
                                 }
                             }
-                            Err(_) => break,
+                            Err(e) => {
+                                println!("DEBUG: Error reading stderr: {:?}", e);
+                                break;
+                            }
                         }
                     }
                 });
@@ -402,12 +411,33 @@ impl App {
         let (input_tx, input_rx) = mpsc::channel::<String>();
         let input_tx_clone = input_tx.clone();
         
+        // Check if this is a sudo command, but don't immediately enable password mode
+        let is_sudo = command.trim().starts_with("sudo ");
+        
         thread::spawn(move || {
             let parts: Vec<&str> = command_clone.split_whitespace().collect();
             
             let mut cmd = if parts[0] == "sudo" {
+                println!("DEBUG: Creating sudo command");
                 let mut cmd = Command::new("sudo");
-                cmd.arg("-S"); // Force sudo to read password from stdin
+                
+                // First check if sudo needs a password with -n flag
+                let needs_password = {
+                    let mut check_cmd = Command::new("sudo");
+                    check_cmd.arg("-n"); // Non-interactive - will fail if password is needed
+                    check_cmd.arg("true");
+                    !check_cmd.status().map(|s| s.success()).unwrap_or(false)
+                };
+                
+                println!("DEBUG: Sudo needs password: {}", needs_password);
+                
+                // If password is needed, send a message to enable password mode
+                if needs_password {
+                    tx.send("[sudo] password required:".to_string()).ok();
+                }
+                
+                // Configure sudo command
+                cmd.arg("-S"); // Read from stdin
                 if parts.len() > 1 {
                     cmd.args(&parts[1..]);
                 }
@@ -424,7 +454,7 @@ impl App {
                .stdout(Stdio::piped())
                .stderr(Stdio::piped())
                .stdin(Stdio::piped());
-
+               
             match cmd.spawn() {
                 Ok(mut child) => {
                     let stdout = child.stdout.take().expect("Failed to open stdout");
@@ -521,10 +551,17 @@ impl App {
             
             match result {
                 Ok(line) => {
+                    // Add debug print
+                    println!("DEBUG: Received line from command: '{}'", line);
+                    
                     // Check for password prompts
-                    if line.contains("[sudo] password for") || line.contains("Password:") {
+                    if line.contains("[sudo] password for") || line.contains("Password:") || 
+                       line.contains("password:") || line.contains("password for") || 
+                       line.contains("password di") || line.contains("password per") ||
+                       line.contains("[sudo]") {
+                        println!("DEBUG: Password prompt detected!");
                         self.password_mode = true;
-                        // Don't add the password prompt to output to avoid duplicates
+                        self.output.push(line.clone());  // Add the password prompt to output
                         return Some(scrollable_container::scroll_to_bottom());
                     }
                     
@@ -584,6 +621,7 @@ impl App {
     pub fn send_input(&mut self, input: String) {
         if let Some((_, _, _, _, input_tx)) = &self.command_receiver {
             if input_tx.send(input).is_ok() {
+                // Don't echo the actual password, just show asterisks
                 self.output.push("*****".to_string());
                 self.password_mode = false;  // Disable password mode after sending
             }
