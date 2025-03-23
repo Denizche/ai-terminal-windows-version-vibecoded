@@ -1,5 +1,5 @@
 use iced::widget::{text, row};
-use iced::{Element, Font, Color};
+use iced::{Element, Font};
 
 use crate::ui::theme::DraculaTheme;
 

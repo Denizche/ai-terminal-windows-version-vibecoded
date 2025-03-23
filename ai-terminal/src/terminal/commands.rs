@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
-use std::io::{BufRead, BufReader, Write, Read};
+use std::io::{BufRead, BufReader, Write};
 use iced::Command as IcedCommand;
 use crate::app::Message;
 use crate::ui::components::scrollable_container;
@@ -87,197 +87,7 @@ impl App {
         self.terminal_scroll = usize::MAX;
     }
 
-    pub fn run_command(&mut self, command: &str) -> (Vec<String>, bool) {
-        let mut result = Vec::new();
-        let mut success = true;
-
-        // Split the command into program and arguments
-        let parts: Vec<&str> = command.split_whitespace().collect();
-        if parts.is_empty() {
-            return (result, success);
-        }
-
-        let program = parts[0];
-        let args: Vec<String> = parts[1..]
-            .iter()
-            .map(|&arg| {
-                if arg == "~" || arg.starts_with("~/") {
-                    if let Some(home) = dirs_next::home_dir() {
-                        if arg == "~" {
-                            home.to_string_lossy().to_string()
-                        } else {
-                            home.join(arg.trim_start_matches("~/"))
-                                .to_string_lossy()
-                                .to_string()
-                        }
-                    } else {
-                        arg.to_string()
-                    }
-                } else {
-                    arg.to_string()
-                }
-            })
-            .collect();
-
-        // Always use streaming execution for external commands
-        return self.run_streaming_command(program, &args);
-    }
-
     // New method to handle streaming command execution
-    fn run_streaming_command(&mut self, program: &str, args: &[String]) -> (Vec<String>, bool) {
-        let mut result = Vec::new();
-        
-        // Show a message indicating the command is running
-        result.push(format!("Running command: {} {}", program, args.join(" ")));
-        self.output.push(result.last().unwrap().clone());
-        
-        // Create a command that will be executed with streaming IO
-        let mut cmd = Command::new(program);
-        cmd.args(args)
-           .current_dir(&self.current_dir)
-           .stdout(Stdio::piped())
-           .stderr(Stdio::piped())
-           .stdin(Stdio::inherit()); // Allow stdin to be passed through
-        
-        match cmd.spawn() {
-            Ok(mut child) => {
-                let stdout = child.stdout.take().expect("Failed to open stdout");
-                let stderr = child.stderr.take().expect("Failed to open stderr");
-                
-                // Create channels for stdout and stderr processing
-                let (stdout_tx, stdout_rx) = mpsc::channel();
-                let (stderr_tx, stderr_rx) = mpsc::channel();
-                
-                // Thread for stdout
-                let stdout_tx = stdout_tx.clone();
-                thread::spawn(move || {
-                    let reader = BufReader::new(stdout);
-                    for line in reader.lines() {
-                        match line {
-                            Ok(line) => {
-                                // Send each line immediately
-                                if !line.trim().is_empty() {
-                                    if stdout_tx.send(line).is_err() {
-                                        break;
-                                    }
-                                }
-                            }
-                            Err(_) => break,
-                        }
-                    }
-                });
-                
-                // Thread for stderr
-                let stderr_tx = stderr_tx.clone();
-                thread::spawn(move || {
-                    let reader = BufReader::new(stderr);
-                    for line in reader.lines() {
-                        match line {
-                            Ok(line) => {
-                                // Send each line immediately
-                                if !line.trim().is_empty() {
-                                    println!("DEBUG: Stderr line: '{}'", line);
-                                    // Check specifically for password prompts in stderr
-                                    if line.contains("password") || line.contains("Password") || 
-                                       line.contains("[sudo]") {
-                                        println!("DEBUG: Password prompt detected in stderr!");
-                                    }
-                                    if stderr_tx.send(line).is_err() {
-                                        break;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                println!("DEBUG: Error reading stderr: {:?}", e);
-                                break;
-                            }
-                        }
-                    }
-                });
-                
-                // Process output with a timeout to ensure UI responsiveness
-                let timeout = std::time::Duration::from_millis(100);
-                let mut received_output = true;
-                
-                while received_output {
-                    received_output = false;
-                    
-                    // Process stdout
-                    while let Ok(line) = stdout_rx.try_recv() {
-                        received_output = true;
-                        result.push(line.clone());
-                        self.output.push(line);
-                    }
-                    
-                    // Process stderr
-                    while let Ok(line) = stderr_rx.try_recv() {
-                        received_output = true;
-                        // Avoid double "Error:" prefix
-                        let error_line = if line.trim_start().starts_with("Error:") {
-                            line.clone()
-                        } else {
-                            format!("Error: {}", line)
-                        };
-                        result.push(error_line.clone());
-                        self.output.push(error_line);
-                    }
-                    
-                    // Check if the process has completed
-                    match child.try_wait() {
-                        Ok(Some(status)) => {
-                            // Process is done
-                            let success = status.success();
-                            if !success {
-                                let status_msg = format!("Command exited with status: {}", status);
-                                result.push(status_msg.clone());
-                                self.output.push(status_msg);
-                            }
-                            return (result, success);
-                        }
-                        Ok(None) => {
-                            // Process is still running
-                            if !received_output {
-                                // No new output, yield to allow UI updates
-                                std::thread::sleep(timeout);
-                            }
-                        }
-                        Err(e) => {
-                            let error_msg = format!("Error checking command status: {}", e);
-                            result.push(error_msg.clone());
-                            self.output.push(error_msg);
-                            return (result, false);
-                        }
-                    }
-                }
-                
-                // Wait for the command to complete if we exited the loop
-                match child.wait() {
-                    Ok(status) => {
-                        let success = status.success();
-                        if !success {
-                            let status_msg = format!("Command exited with status: {}", status);
-                            result.push(status_msg.clone());
-                            self.output.push(status_msg);
-                        }
-                        (result, success)
-                    }
-                    Err(e) => {
-                        let error_msg = format!("Error waiting for command to complete: {}", e);
-                        result.push(error_msg.clone());
-                        self.output.push(error_msg);
-                        (result, false)
-                    }
-                }
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to execute command: {}", e);
-                result.push(error_msg.clone());
-                self.output.push(error_msg);
-                (result, false)
-            }
-        }
-    }
-
     pub fn change_directory(&mut self, path: &str) -> bool {
         let new_dir = if path.starts_with('/') {
             // Absolute path
@@ -344,8 +154,6 @@ impl App {
         let input_tx_clone = input_tx.clone();
         
         // Check if this is a sudo command, but don't immediately enable password mode
-        let is_sudo = command.trim().starts_with("sudo ");
-        
         thread::spawn(move || {
             let parts: Vec<&str> = command_clone.split_whitespace().collect();
             
@@ -394,7 +202,7 @@ impl App {
                     let stdin = child.stdin.take().expect("Failed to open stdin");
                     
                     // Thread to handle user input
-                    let input_thread = thread::spawn(move || {
+                    thread::spawn(move || {
                         let mut stdin = stdin;
                         while let Ok(input) = input_rx.recv() {
                             writeln!(stdin, "{}", input).ok();
@@ -587,132 +395,5 @@ impl App {
             return Some(scrollable_container::scroll_to_bottom());
         }
         None
-    }
-}
-
-// Execute a command and return the output
-pub fn execute_command(command: &str, current_dir: &PathBuf) -> (Vec<String>, bool) {
-    // Handle built-in commands
-    if command.starts_with("cd ") {
-        return handle_cd_command(command, current_dir);
-    }
-
-    // Expand tilde in command arguments
-    let expanded_command = command.split_whitespace()
-        .enumerate()
-        .map(|(i, arg)| {
-            if i == 0 {
-                arg.to_string()
-            } else if arg == "~" || arg.starts_with("~/") {
-                if let Some(home) = dirs_next::home_dir() {
-                    if arg == "~" {
-                        home.to_string_lossy().to_string()
-                    } else {
-                        home.join(arg.trim_start_matches("~/"))
-                            .to_string_lossy()
-                            .to_string()
-                    }
-                } else {
-                    arg.to_string()
-                }
-            } else {
-                arg.to_string()
-            }
-        })
-        .collect::<Vec<String>>()
-        .join(" ");
-
-    // Execute external command
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(expanded_command)
-        .current_dir(current_dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output();
-
-    match output {
-        Ok(output) => {
-            let success = output.status.success();
-            
-            // Convert stdout to string
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            
-            // Split output into lines
-            let mut result = Vec::new();
-            
-            // Add stdout lines
-            if !stdout.is_empty() {
-                result.extend(stdout.lines().map(|s| s.to_string()));
-            }
-            
-            // Add stderr lines
-            if !stderr.is_empty() {
-                result.extend(stderr.lines().map(|s| s.to_string()));
-            }
-            
-            (result, success)
-        }
-        Err(e) => {
-            (vec![format!("Error executing command: {}", e)], false)
-        }
-    }
-}
-
-// Handle the cd command
-fn handle_cd_command(command: &str, current_dir: &PathBuf) -> (Vec<String>, bool) {
-    let parts: Vec<&str> = command.split_whitespace().collect();
-    if parts.len() < 2 {
-        return (vec!["cd: missing argument".to_string()], false);
-    }
-
-    let path = parts[1];
-    let new_dir = if path.starts_with('/') {
-        PathBuf::from(path)
-    } else {
-        let mut dir = current_dir.clone();
-        dir.push(path);
-        dir
-    };
-
-    if new_dir.exists() && new_dir.is_dir() {
-        std::env::set_current_dir(&new_dir).unwrap_or_else(|_| {
-            // If we can't set the current directory, return an error
-            return;
-        });
-        (vec![format!("Changed directory to {}", new_dir.display())], true)
-    } else {
-        (vec![format!("cd: {}: No such directory", path)], false)
-    }
-}
-
-pub fn navigate_history_up(app: &mut App) {
-    if let Some(current_index) = app.command_history_index {
-        if current_index > 0 {
-            app.command_history_index = Some(current_index - 1);
-            if let Some(command) = app.command_history.get(current_index - 1) {
-                app.input = command.clone();
-            }
-        }
-    } else if !app.command_history.is_empty() {
-        app.command_history_index = Some(app.command_history.len() - 1);
-        if let Some(command) = app.command_history.last() {
-            app.input = command.clone();
-        }
-    }
-}
-
-pub fn navigate_history_down(app: &mut App) {
-    if let Some(current_index) = app.command_history_index {
-        if current_index < app.command_history.len() - 1 {
-            app.command_history_index = Some(current_index + 1);
-            if let Some(command) = app.command_history.get(current_index + 1) {
-                app.input = command.clone();
-            }
-        } else {
-            app.command_history_index = None;
-            app.input.clear();
-        }
     }
 }

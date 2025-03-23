@@ -57,9 +57,9 @@ pub struct TerminalApp {
 }
 
 impl Application for TerminalApp {
+    type Executor = iced::executor::Default;
     type Message = Message;
     type Theme = Theme;
-    type Executor = iced::executor::Default;
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
@@ -83,98 +83,12 @@ impl Application for TerminalApp {
         String::from("AI Terminal")
     }
 
-    fn subscription(&self) -> iced::Subscription<Message> {
-        struct EventHandler;
-        impl EventHandler {
-            fn handle(event: Event, _status: iced::event::Status) -> Option<Message> {
-                if let Event::Keyboard(key_event) = event {
-                    match key_event {
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::C,
-                            modifiers,
-                            ..
-                        } if modifiers.control() => {
-                            // Handle Ctrl+C to terminate running commands
-                            return Some(Message::TerminateCommand);
-                        }
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Tab,
-                            modifiers,
-                            ..
-                        } if !modifiers.alt() && !modifiers.control() && !modifiers.shift() => {
-                            Some(Message::TabPressed)
-                        }
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Up,
-                            ..
-                        } => Some(Message::HistoryUp),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Down,
-                            ..
-                        } => Some(Message::HistoryDown),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Left,
-                            modifiers,
-                        } if modifiers.alt() => Some(Message::ResizeLeft),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Right,
-                            modifiers,
-                        } if modifiers.alt() => Some(Message::ResizeRight),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Grave,
-                            modifiers,
-                        } if modifiers.shift() => Some(Message::TildePressed),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::E,
-                            modifiers,
-                        } if modifiers.control() => Some(Message::ToggleFocus),
-                        _ => None,
-                    }
-                } else {
-                    None
-                }
-            }
-        }
-
-        let keyboard_events = iced::subscription::events_with(EventHandler::handle);
-        
-        // Only create the terminal poll subscription if we have a command running
-        let terminal_poll = if self.state.command_receiver.is_some() {
-            subscription::unfold(
-                "terminal_poll",
-                State::Ready,
-                move |state| async move {
-                    match state {
-                        State::Ready => {
-                            tokio::time::sleep(Duration::from_millis(1)).await;
-                            (Message::PollCommandOutput, State::Waiting)
-                        }
-                        State::Waiting => {
-                            tokio::time::sleep(Duration::from_millis(1)).await;
-                            (Message::PollCommandOutput, State::Waiting)
-                        }
-                    }
-                },
-            )
-        } else {
-            subscription::unfold("inactive_poll", (), |_| async {
-                tokio::time::sleep(Duration::from_secs(3600)).await;
-                (Message::PollCommandOutput, ())
-            })
-        };
-        
-        iced::Subscription::batch(vec![
-            keyboard_events,
-            terminal_poll,
-        ])
-    }
-
     fn update(&mut self, message: Message) -> Command<Message> {
         // First, check if we have a streaming command that needs polling
         if let Some(command) = self.state.poll_command_output() {
             return command;
         }
-        
+
         match message {
             Message::PollCommandOutput => {
                 if let Some(cmd) = self.state.poll_command_output() {
@@ -197,11 +111,11 @@ impl Application for TerminalApp {
             Message::ExecuteCommand => {
                 if !self.terminal_input.is_empty() {
                     self.state.input = self.terminal_input.clone();
-                    
+
                     // Start command execution
                     self.state.execute_command();
                     self.terminal_input.clear();
-                    
+
                     // Add slight delay before scrolling to improve smoothness
                     let scroll_cmd = components::scrollable_container::scroll_to_bottom();
                     return Command::batch(vec![
@@ -215,7 +129,7 @@ impl Application for TerminalApp {
                 if !self.ai_input.is_empty() {
                     let query = self.ai_input.clone();
                     self.ai_input.clear();
-                    
+
                     // Add query to output
                     let formatted_query = format!("> {}", query);
                     self.state.ai_output.push(formatted_query.clone());
@@ -224,7 +138,7 @@ impl Application for TerminalApp {
                     if query.starts_with('/') {
                         let parts: Vec<&str> = query.split_whitespace().collect();
                         let cmd = parts[0];
-                        
+
                         match cmd {
                             "/models" => {
                                 println!("Processing /models command");
@@ -273,7 +187,7 @@ impl Application for TerminalApp {
                         }
                     } else {
                         self.state.ai_output.push("Thinking...".to_string());
-                        
+
                         // Create the context for Ollama
                         let message_with_context = self.create_ollama_context(&query);
                         let model = self.state.ollama_model.clone();
@@ -334,7 +248,7 @@ impl Application for TerminalApp {
                         // Add the AI response to output
                         println!("Adding response to output: {}", response);
                         self.state.ai_output.push(response.clone());
-                        
+
                         // Add slight delay before scrolling to improve smoothness
                         let scroll_cmd = components::scrollable_container::scroll_to_bottom();
                         return Command::batch(vec![
@@ -352,7 +266,7 @@ impl Application for TerminalApp {
                             }
                         }
                         self.state.ai_output.push(format!("Error: {}", error));
-                        
+
                         // Add slight delay before scrolling to improve smoothness
                         let scroll_cmd = components::scrollable_container::scroll_to_bottom();
                         return Command::batch(vec![
@@ -390,7 +304,7 @@ impl Application for TerminalApp {
                             }
                         }
                     } else if !self.state.command_history.is_empty() {
-                        // Start from newest command (last in the vector)
+                        // Start from the newest command (last in the vector)
                         let last_idx = self.state.command_history.len() - 1;
                         self.state.command_history_index = Some(last_idx);
                         if let Some(command) = self.state.command_history.last() {
@@ -463,7 +377,7 @@ impl Application for TerminalApp {
                 println!("[app.rs] Tab pressed message received");
                 if self.focus == FocusTarget::Terminal {
                     println!("[app.rs] Focus is on terminal");
-                    
+
                     // If we don't have any suggestions yet, get them
                     if self.current_suggestions.is_empty() {
                         println!("[app.rs] Getting new suggestions");
@@ -556,6 +470,92 @@ impl Application for TerminalApp {
             // Just show the normal content
             content.into()
         }
+    }
+
+    fn subscription(&self) -> iced::Subscription<Message> {
+        struct EventHandler;
+        impl EventHandler {
+            fn handle(event: Event, _status: iced::event::Status) -> Option<Message> {
+                if let Event::Keyboard(key_event) = event {
+                    match key_event {
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::C,
+                            modifiers,
+                            ..
+                        } if modifiers.control() => {
+                            // Handle Ctrl+C to terminate running commands
+                            return Some(Message::TerminateCommand);
+                        }
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::Tab,
+                            modifiers,
+                            ..
+                        } if !modifiers.alt() && !modifiers.control() && !modifiers.shift() => {
+                            Some(Message::TabPressed)
+                        }
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::Up,
+                            ..
+                        } => Some(Message::HistoryUp),
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::Down,
+                            ..
+                        } => Some(Message::HistoryDown),
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::Left,
+                            modifiers,
+                        } if modifiers.alt() => Some(Message::ResizeLeft),
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::Right,
+                            modifiers,
+                        } if modifiers.alt() => Some(Message::ResizeRight),
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::Grave,
+                            modifiers,
+                        } if modifiers.shift() => Some(Message::TildePressed),
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::E,
+                            modifiers,
+                        } if modifiers.control() => Some(Message::ToggleFocus),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+
+        let keyboard_events = iced::subscription::events_with(EventHandler::handle);
+
+        // Only create the terminal poll subscription if we have a command running
+        let terminal_poll = if self.state.command_receiver.is_some() {
+            subscription::unfold(
+                "terminal_poll",
+                State::Ready,
+                move |state| async move {
+                    match state {
+                        State::Ready => {
+                            tokio::time::sleep(Duration::from_millis(1)).await;
+                            (Message::PollCommandOutput, State::Waiting)
+                        }
+                        State::Waiting => {
+                            tokio::time::sleep(Duration::from_millis(1)).await;
+                            (Message::PollCommandOutput, State::Waiting)
+                        }
+                    }
+                },
+            )
+        } else {
+            subscription::unfold("inactive_poll", (), |_| async {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+                (Message::PollCommandOutput, ())
+            })
+        };
+
+        iced::Subscription::batch(vec![
+            keyboard_events,
+            terminal_poll,
+        ])
     }
 }
 

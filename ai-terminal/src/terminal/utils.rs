@@ -1,6 +1,5 @@
 use regex::Regex;
-use std::path::{Path, PathBuf};
-use std::fs;
+use std::path::{Path};
 use std::process::Command;
 
 // Extract commands from a response string
@@ -53,6 +52,6 @@ pub fn get_git_info(dir: &Path) -> (bool, Option<String>) {
             let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
             (true, Some(branch))
         },
-        _ => (true, None), // It's a git repo but we couldn't get the branch
+        _ => (true, None), // It's a git repo, but we couldn't get the branch
     }
 }

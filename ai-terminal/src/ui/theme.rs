@@ -1,6 +1,5 @@
-use iced::{Color, Theme, Background, BorderRadius};
+use iced::{Color, Theme, Background};
 use iced::widget::{container, text_input};
-use iced::widget::container::Appearance;
 
 // Official Dracula Theme Colors
 pub struct DraculaTheme;
@@ -32,12 +31,12 @@ impl text_input::StyleSheet for TextInputStyle {
         DraculaTheme::FOREGROUND
     }
 
-    fn selection_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::SELECTION
-    }
-
     fn disabled_color(&self, _style: &Self::Style) -> Color {
         DraculaTheme::COMMENT
+    }
+
+    fn selection_color(&self, _style: &Self::Style) -> Color {
+        DraculaTheme::SELECTION
     }
 
     fn disabled(&self, _style: &Self::Style) -> text_input::Appearance {
@@ -78,12 +77,12 @@ impl text_input::StyleSheet for FocusedTextInputStyle {
         DraculaTheme::FOREGROUND
     }
 
-    fn selection_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::SELECTION
-    }
-
     fn disabled_color(&self, _style: &Self::Style) -> Color {
         DraculaTheme::COMMENT
+    }
+
+    fn selection_color(&self, _style: &Self::Style) -> Color {
+        DraculaTheme::SELECTION
     }
 
     fn disabled(&self, _style: &Self::Style) -> text_input::Appearance {
@@ -138,12 +137,6 @@ impl DraculaTheme {
         0x50 as f32 / 255.0,
         0xFA as f32 / 255.0,
         0x7B as f32 / 255.0,
-    );
-    
-    pub const ORANGE: Color = Color::from_rgb(
-        0xFF as f32 / 255.0,
-        0xB8 as f32 / 255.0,
-        0x6C as f32 / 255.0,
     );
     
     pub const PINK: Color = Color::from_rgb(
@@ -216,16 +209,6 @@ impl DraculaTheme {
         })
     }
 
-    pub fn success_command_block_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
-        Box::new(|_| container::Appearance {
-            text_color: Some(Self::FOREGROUND),
-            background: Some(Background::Color(Color::from_rgba8(40, 100, 40, 0.15))),
-            border_radius: 4.0.into(),
-            border_width: 0.0,
-            border_color: Color::TRANSPARENT,
-        })
-    }
-
     pub fn failure_command_block_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
         Box::new(|_| container::Appearance {
             text_color: None,
@@ -250,10 +233,6 @@ impl DraculaTheme {
         iced::theme::TextInput::Custom(Box::new(FocusedTextInputStyle))
     }
 
-    pub fn yellow_text_style() -> iced::theme::Text {
-        iced::theme::Text::Color(Color::from_rgb(0.945, 0.776, 0.459))
-    }
-
     pub fn button_style() -> iced::theme::Button {
         iced::theme::Button::Custom(Box::new(ButtonStyle))
     }
@@ -269,16 +248,6 @@ impl DraculaTheme {
             border_radius: 8.0.into(),
             border_width: 1.0,
             border_color: Self::PURPLE,
-        })
-    }
-
-    pub fn modal_overlay_style() -> Box<dyn Fn(&Theme) -> container::Appearance> {
-        Box::new(|_| container::Appearance {
-            text_color: None,
-            background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.7))),
-            border_radius: 0.0.into(),
-            border_width: 0.0,
-            border_color: Color::TRANSPARENT,
         })
     }
 

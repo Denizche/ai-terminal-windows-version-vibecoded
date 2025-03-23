@@ -8,59 +8,6 @@ use crate::model::{OllamaModelList, OllamaRequest, OllamaResponse};
 // Global flag to track if a request is in progress
 pub static IS_THINKING: AtomicBool = AtomicBool::new(false);
 
-/// Function to send a message to Ollama and get a response
-pub async fn ask_ollama(message: &str, model: &str) -> Result<String, Box<dyn Error>> {
-    let client = Client::new();
-
-    let system_prompt = "You are a helpful AI assistant integrated into a terminal application. \
-    Always respond with valid terminal commands that solve the user's request. \
-    Format your response with a brief explanation followed by the command in a code block like this: \
-    ```\ncommand\n```\n \
-    If multiple commands are needed, list them in sequence with explanations for each. \
-    If you're unsure or the request doesn't require a terminal command, explain why. \
-    \
-    You will receive system information about the user's operating system. \
-    Use this information to provide commands that are compatible with their OS. \
-    \
-    You may also receive context about the last terminal command and its output. \
-    Use this context to provide more relevant and accurate responses. \
-    When you see 'System Info:' followed by OS details, and 'Last terminal command:' followed by 'Output:', \
-    this is providing you with the context of what the user just did in their terminal. \
-    The actual user query follows after 'User query:'.";
-    
-    let request = OllamaRequest {
-        model: model.to_string(),
-        prompt: message.to_string(),
-        stream: false,
-        system: Some(system_prompt.to_string()),
-    };
-    
-    let response = client.post(OLLAMA_API_URL)
-        .json(&request)
-        .send()
-        .await?
-        .json::<OllamaResponse>()
-        .await?;
-    
-    Ok(response.response)
-}
-
-/// Function to list available Ollama models
-pub async fn list_ollama_models() -> Result<Vec<String>, Box<dyn Error>> {
-    println!("list_ollama_models: Fetching models from {}", OLLAMA_LIST_MODELS_URL);
-    let client = Client::new();
-
-    let response = client
-        .get(OLLAMA_LIST_MODELS_URL)
-        .send()
-        .await?
-        .json::<OllamaModelList>()
-        .await?;
-
-    println!("list_ollama_models: Got {} models", response.models.len());
-    Ok(response.models.into_iter().map(|m| m.name).collect())
-}
-
 // Send a prompt to Ollama and get the response
 pub async fn send_prompt(model: &str, prompt: &str) -> Result<String, String> {
     println!("send_prompt: Sending prompt to model {}", model);
@@ -71,7 +18,7 @@ pub async fn send_prompt(model: &str, prompt: &str) -> Result<String, String> {
             model: model.to_string(),
             prompt: prompt.to_string(),
             stream: false,
-            system: None,
+            system: None, // add here the system prompt
         };
         
         println!("send_prompt: Sending request to {}", OLLAMA_API_URL);
@@ -139,9 +86,4 @@ pub async fn list_models() -> Result<Vec<String>, String> {
             Err(format!("Request error: {}", e))
         }
     }
-}
-
-// Check if the LLM is currently thinking
-pub fn is_thinking() -> bool {
-    IS_THINKING.load(Ordering::SeqCst)
 }

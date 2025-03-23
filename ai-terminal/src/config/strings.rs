@@ -14,9 +14,6 @@ pub const AI_INSTRUCTIONS: [&str; 2] = [
     "I can help you with terminal commands and provide explanations.",
 ];
 
-// Help messages
-pub const HELP_MESSAGES: [&str; 2] = ["Available commands:", "Features:"];
-
 pub const HELP_COMMANDS: [&str; 5] = [
     "  /model <model_name> - Change the Ollama model",
     "  /help - Show this help message",
