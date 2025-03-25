@@ -645,28 +645,34 @@ impl TerminalApp {
                 
                 // Create layout with block content and optional copy button
                 if show_copy {
-                    row![
-                        container(
-                            column(
-                                block.iter().map(|line| {
-                                    styled_text(
-                                        line,
-                                        line.starts_with("> "),
-                                        line.starts_with("> ") && has_failed,
-                                        false // Don't show copy button for individual lines
-                                    )
-                                }).collect()
-                            ).spacing(2)
-                            .width(Length::Fill)
-                        )
-                        .padding(10)
-                        .width(Length::Fill)
-                        .style(style),
-                        container(copy_button(block.join("\n\n")))
-                            .align_y(iced::alignment::Vertical::Top)
-                            .padding(5)
-                    ]
+                    container(
+                        column![
+                            container(
+                                column(
+                                    block.iter().map(|line| {
+                                        styled_text(
+                                            line,
+                                            line.starts_with("> "),
+                                            line.starts_with("> ") && has_failed,
+                                            false // Don't show copy button for individual lines
+                                        )
+                                    }).collect()
+                                ).spacing(2)
+                                .width(Length::Fill)
+                            )
+                            .padding(10)
+                            .width(Length::Fill),
+                            container(
+                                row![
+                                    iced::widget::horizontal_space(Length::Fill),
+                                    copy_button(block.join("\n\n"))
+                                ]
+                            )
+                            .padding([0, 10, 10, 10])
+                        ]
+                    )
                     .width(Length::Fill)
+                    .style(style)
                     .into()
                 } else {
                     container(
@@ -815,28 +821,34 @@ impl TerminalApp {
                     !block.iter().any(|line| line.contains("instruction") || line.contains("welcome"));
                 
                 if show_copy {
-                    row![
-                        container(
-                            column(
-                                block.iter().map(|line| {
-                                    styled_text(
-                                        line,
-                                        line.starts_with("> "),
-                                        false, // AI commands don't have failure status
-                                        false  // Don't show copy button for individual lines
-                                    )
-                                }).collect()
-                            ).spacing(2)
-                            .width(Length::Fill)
-                        )
-                        .padding(10)
-                        .width(Length::Fill)
-                        .style(DraculaTheme::command_block_style()),
-                        container(copy_button(block.join("\n\n")))
-                            .align_y(iced::alignment::Vertical::Top)
-                            .padding(5)
-                    ]
+                    container(
+                        column![
+                            container(
+                                column(
+                                    block.iter().map(|line| {
+                                        styled_text(
+                                            line,
+                                            line.starts_with("> "),
+                                            false, // AI commands don't have failure status
+                                            false  // Don't show copy button for individual lines
+                                        )
+                                    }).collect()
+                                ).spacing(2)
+                                .width(Length::Fill)
+                            )
+                            .padding(10)
+                            .width(Length::Fill),
+                            container(
+                                row![
+                                    iced::widget::horizontal_space(Length::Fill),
+                                    copy_button(block.join("\n\n"))
+                                ]
+                            )
+                            .padding([0, 10, 10, 10])
+                        ]
+                    )
                     .width(Length::Fill)
+                    .style(DraculaTheme::command_block_style())
                     .into()
                 } else {
                     container(
