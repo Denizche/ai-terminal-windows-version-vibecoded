@@ -49,14 +49,14 @@ impl crate::model::App {
 
         crate::model::App {
             input: String::new(),
-            output: initial_output,
+            output: initial_output.clone(),
             cursor_position: 0,
             current_dir,
             is_git_repo,
             git_branch,
             // Initialize AI assistant fields
             ai_input: String::new(),
-            ai_output: initial_ai_output,
+            ai_output: initial_ai_output.clone(),
             ai_cursor_position: 0,
             active_panel: Panel::Terminal,
             // Panel management
@@ -94,6 +94,8 @@ impl crate::model::App {
             command_receiver: None,
             // Password mode
             password_mode: false,
+            initial_output_count: initial_output.len(),
+            initial_ai_output_count: initial_ai_output.len(),
         }
     }
 }
