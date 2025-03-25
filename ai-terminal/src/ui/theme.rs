@@ -31,12 +31,16 @@ impl text_input::StyleSheet for TextInputStyle {
         DraculaTheme::FOREGROUND
     }
 
-    fn disabled_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::COMMENT
+    fn selection_color(&self, _style: &Self::Style) -> Color {
+        let r = DraculaTheme::PURPLE.r;
+        let g = DraculaTheme::PURPLE.g;
+        let b = DraculaTheme::PURPLE.b;
+        
+        Color::from_rgba(r, g, b, 0.5)
     }
 
-    fn selection_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::SELECTION
+    fn disabled_color(&self, _style: &Self::Style) -> Color {
+        DraculaTheme::COMMENT
     }
 
     fn disabled(&self, _style: &Self::Style) -> text_input::Appearance {
@@ -82,7 +86,11 @@ impl text_input::StyleSheet for FocusedTextInputStyle {
     }
 
     fn selection_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::SELECTION
+        let r = DraculaTheme::PURPLE.r;
+        let g = DraculaTheme::PURPLE.g;
+        let b = DraculaTheme::PURPLE.b;
+        
+        Color::from_rgba(r, g, b, 0.5)
     }
 
     fn disabled(&self, _style: &Self::Style) -> text_input::Appearance {
@@ -270,6 +278,14 @@ impl DraculaTheme {
             border_color: Color::TRANSPARENT,
         })
     }
+
+    pub fn copy_button_style() -> iced::theme::Button {
+        iced::theme::Button::Custom(Box::new(CopyButtonStyle))
+    }
+
+    pub fn icon_button_style() -> iced::theme::Button {
+        iced::theme::Button::Custom(Box::new(IconButtonStyle))
+    }
 }
 
 struct ButtonStyle;
@@ -325,6 +341,66 @@ impl iced::widget::button::StyleSheet for CloseButtonStyle {
                 0x35 as f32 / 255.0,
             ))),
             ..active
+        }
+    }
+}
+
+struct CopyButtonStyle;
+impl iced::widget::button::StyleSheet for CopyButtonStyle {
+    type Style = Theme;
+
+    fn active(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+        iced::widget::button::Appearance {
+            background: Some(Background::Color(DraculaTheme::CURRENT_LINE)),
+            text_color: DraculaTheme::CYAN,
+            border_radius: 3.0.into(),
+            border_width: 1.0,
+            border_color: DraculaTheme::COMMENT,
+            shadow_offset: iced::Vector::new(0.0, 0.0),
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> iced::widget::button::Appearance {
+        let active = self.active(style);
+        iced::widget::button::Appearance {
+            background: Some(Background::Color(DraculaTheme::SELECTION)),
+            text_color: DraculaTheme::FOREGROUND,
+            ..active
+        }
+    }
+}
+
+struct IconButtonStyle;
+
+impl iced::widget::button::StyleSheet for IconButtonStyle {
+    type Style = iced::Theme;
+
+    fn active(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+        iced::widget::button::Appearance {
+            background: Some(Color::TRANSPARENT.into()),
+            border_radius: 4.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+            text_color: DraculaTheme::COMMENT,
+            shadow_offset: iced::Vector::new(0.0, 0.0),
+            ..Default::default()
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> iced::widget::button::Appearance {
+        let active = self.active(style);
+        iced::widget::button::Appearance {
+            background: Some(Color { a: 0.1, ..DraculaTheme::COMMENT}.into()),
+            text_color: DraculaTheme::FOREGROUND,
+            ..active
+        }
+    }
+
+    fn pressed(&self, style: &Self::Style) -> iced::widget::button::Appearance {
+        let hovered = self.hovered(style);
+        iced::widget::button::Appearance {
+            background: Some(Color { a: 0.2, ..DraculaTheme::COMMENT}.into()),
+            ..hovered
         }
     }
 } 

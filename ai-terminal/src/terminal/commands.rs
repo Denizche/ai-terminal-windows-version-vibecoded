@@ -129,10 +129,6 @@ impl App {
                 self.is_git_repo = is_git_repo;
                 self.git_branch = branch;
                 
-                self.output.push(format!(
-                    "Changed directory to: {}",
-                    self.current_dir.display()
-                ));
                 true
             }
             Err(e) => {

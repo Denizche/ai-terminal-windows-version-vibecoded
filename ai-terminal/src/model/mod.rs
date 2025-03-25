@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::{mpsc, Arc, Mutex};
 use crate::config::FocusTarget;
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
 
 pub mod app;
 
@@ -106,7 +104,7 @@ pub struct App {
     // Focus target
     pub focus: FocusTarget,
 
-    // Change the command_receiver to use Arc to make it cloneable
+    // Command execution state
     pub command_receiver: Option<(
         Arc<Mutex<mpsc::Receiver<String>>>,
         usize,
@@ -115,6 +113,12 @@ pub struct App {
         mpsc::Sender<String>
     )>,
 
-    // Add this to your App struct
+    // Password input mode
     pub password_mode: bool,
+
+    // Initial output counts
+    pub initial_output_count: usize,
+    pub initial_ai_output_count: usize,
 }
+
+// The OutputEntry struct appears to be unused and can be removed

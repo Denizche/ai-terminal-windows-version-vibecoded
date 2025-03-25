@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::model::{App as AppState, Panel, CommandStatus};
 use crate::ollama::{api, commands};
-use crate::ui::components::{styled_text, drag_handle};
+use crate::ui::components::{styled_text, drag_handle, copy_button};
 use crate::ui::theme::DraculaTheme;
 use crate::terminal::utils;
 use crate::config::keyboard::{FocusTarget, handle_keyboard_shortcuts};
@@ -42,6 +42,8 @@ pub enum Message {
     SubmitPassword,
     TerminateCommand,
     ToggleShortcutsModal,
+    CopyToClipboard(String, bool),
+    HandleCtrlC,
 }
 
 pub struct TerminalApp {
@@ -430,6 +432,33 @@ impl Application for TerminalApp {
                 self.show_shortcuts_modal = !self.show_shortcuts_modal;
                 Command::none()
             }
+            Message::CopyToClipboard(content, _show_feedback) => {
+                // Just copy to clipboard without feedback mechanism
+                iced::clipboard::write(content)
+            }
+            Message::HandleCtrlC => {
+                // Check if there's a running command first
+                if self.state.command_receiver.is_some() {
+                    // There's a running command, terminate it
+                    if let Some(cmd) = self.state.terminate_running_command() {
+                        return cmd;
+                    }
+                } else {
+                    // No running command, try to get selected text from OS clipboard
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        if let Ok(text) = clipboard.get_text() {
+                            // Text was copied via OS selection mechanisms, we don't need to do anything
+                            // The OS clipboard already has the text
+                            println!("Text copied: {}", if text.len() > 20 { 
+                                format!("{}...", &text[..20]) 
+                            } else { 
+                                text.clone() 
+                            });
+                        }
+                    }
+                }
+                Command::none()
+            }
         }
     }
 
@@ -483,8 +512,9 @@ impl Application for TerminalApp {
                             modifiers,
                             ..
                         } if modifiers.control() => {
-                            // Handle Ctrl+C to terminate running commands
-                            return Some(Message::TerminateCommand);
+                            // If text is selected in an input field, copy it
+                            // Otherwise, terminate running commands
+                            return Some(Message::HandleCtrlC);
                         }
                         KeyEvent::KeyPressed {
                             key_code: keyboard::KeyCode::Tab,
@@ -607,23 +637,56 @@ impl TerminalApp {
                     DraculaTheme::command_block_style()
                 };
 
-                container(
-                    column(
-                        block.iter().map(|line| {
-                            styled_text(
-                                line,
-                                line.starts_with("> "),
-                                // Only pass true for command lines (starting with >) and when the command failed
-                                line.starts_with("> ") && has_failed
-                            )
-                        }).collect()
-                    ).spacing(2)
+                // Determine if we should show copy button for this block
+                let show_copy = i >= self.state.initial_output_count || 
+                    (block.iter().any(|line| line.starts_with("> ")) && 
+                     !block.iter().any(|line| line.contains("Welcome") || line.contains("Operating System")) && 
+                     !self.state.command_history.is_empty());
+                
+                // Create layout with block content and optional copy button
+                if show_copy {
+                    row![
+                        container(
+                            column(
+                                block.iter().map(|line| {
+                                    styled_text(
+                                        line,
+                                        line.starts_with("> "),
+                                        line.starts_with("> ") && has_failed,
+                                        false // Don't show copy button for individual lines
+                                    )
+                                }).collect()
+                            ).spacing(2)
+                            .width(Length::Fill)
+                        )
+                        .padding(10)
+                        .width(Length::Fill)
+                        .style(style),
+                        container(copy_button(block.join("\n\n")))
+                            .align_y(iced::alignment::Vertical::Top)
+                            .padding(5)
+                    ]
                     .width(Length::Fill)
-                )
-                .padding(10)
-                .width(Length::Fill)
-                .style(style)
-                .into()
+                    .into()
+                } else {
+                    container(
+                        column(
+                            block.iter().map(|line| {
+                                styled_text(
+                                    line,
+                                    line.starts_with("> "),
+                                    line.starts_with("> ") && has_failed,
+                                    false // Don't show copy button for individual lines
+                                )
+                            }).collect()
+                        ).spacing(2)
+                        .width(Length::Fill)
+                    )
+                    .padding(10)
+                    .width(Length::Fill)
+                    .style(style)
+                    .into()
+                }
             }).collect()
         )
         .spacing(10)
@@ -658,15 +721,15 @@ impl TerminalApp {
         let current_dir_content = if self.state.is_git_repo {
             if let Some(branch) = &self.state.git_branch {
                 row![
-                    styled_text(&dir_path, false, false),
-                    styled_text(" ", false, false),
+                    styled_text(&dir_path, false, false, false),
+                    styled_text(" ", false, false, false),
                     crate::ui::components::git_branch_text(branch)
                 ]
             } else {
-                row![styled_text(&dir_path, false, false)]
+                row![styled_text(&dir_path, false, false, false)]
             }
         } else {
-            row![styled_text(&dir_path, false, false)]
+            row![styled_text(&dir_path, false, false, false)]
         };
 
         let current_dir = container(current_dir_content)
@@ -746,23 +809,54 @@ impl TerminalApp {
 
         // Create styled blocks
         let output_elements: Element<_> = column(
-            blocks.iter().map(|block| {
-                container(
-                    column(
-                        block.iter().map(|line| {
-                            styled_text(
-                                line,
-                                line.starts_with("> "),
-                                false // AI commands don't have failure status
-                            )
-                        }).collect()
-                    ).spacing(2)
+            blocks.iter().enumerate().map(|(i, block)| {
+                // Determine if we should show copy button for this block
+                let show_copy = i >= self.state.initial_ai_output_count || 
+                    !block.iter().any(|line| line.contains("instruction") || line.contains("welcome"));
+                
+                if show_copy {
+                    row![
+                        container(
+                            column(
+                                block.iter().map(|line| {
+                                    styled_text(
+                                        line,
+                                        line.starts_with("> "),
+                                        false, // AI commands don't have failure status
+                                        false  // Don't show copy button for individual lines
+                                    )
+                                }).collect()
+                            ).spacing(2)
+                            .width(Length::Fill)
+                        )
+                        .padding(10)
+                        .width(Length::Fill)
+                        .style(DraculaTheme::command_block_style()),
+                        container(copy_button(block.join("\n\n")))
+                            .align_y(iced::alignment::Vertical::Top)
+                            .padding(5)
+                    ]
                     .width(Length::Fill)
-                )
-                .padding(10)
-                .width(Length::Fill)
-                .style(DraculaTheme::command_block_style())
-                .into()
+                    .into()
+                } else {
+                    container(
+                        column(
+                            block.iter().map(|line| {
+                                styled_text(
+                                    line,
+                                    line.starts_with("> "),
+                                    false, // AI commands don't have failure status
+                                    false  // Don't show copy button for individual lines
+                                )
+                            }).collect()
+                        ).spacing(2)
+                        .width(Length::Fill)
+                    )
+                    .padding(10)
+                    .width(Length::Fill)
+                    .style(DraculaTheme::command_block_style())
+                    .into()
+                }
             }).collect()
         )
         .spacing(10)
