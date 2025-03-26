@@ -1,6 +1,6 @@
 use iced::keyboard::{KeyCode, Event as KeyEvent};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FocusTarget {
     Terminal,
     AiChat,

@@ -5,24 +5,89 @@ use crate::ui::theme::DraculaTheme;
 use crate::app::Message;
 use super::copy_button::copy_button;
 
-pub fn styled_text<'a>(content: &str, is_command: bool, command_failed: bool, show_copy: bool) -> Element<'a, Message> {
-    let text_element = if is_command {
-        if command_failed {
+pub fn styled_text<'a>(content: &str, is_command: bool, command_failed: bool, show_copy: bool, search_term: Option<&str>) -> Element<'a, Message> {
+    let text_element = if let Some(term) = search_term {
+        if term.is_empty() {
             text(content)
                 .font(Font::MONOSPACE)
-                .size(13)  // Slightly larger for commands to make them stand out
-                .style(DraculaTheme::error_command_text())
+                .size(if is_command { 13 } else { 12 })
+                .style(if is_command {
+                    if command_failed {
+                        DraculaTheme::error_command_text()
+                    } else {
+                        DraculaTheme::command_text()
+                    }
+                } else {
+                    DraculaTheme::output_text()
+                })
+                .into()
         } else {
-            text(content)
-                .font(Font::MONOSPACE)
-                .size(13)  // Slightly larger for commands to make them stand out
-                .style(DraculaTheme::command_text())
+            let mut elements = Vec::new();
+            let mut current_pos = 0;
+            let content_lower = content.to_lowercase();
+            let term_lower = term.to_lowercase();
+
+            while let Some(pos) = content_lower[current_pos..].find(&term_lower) {
+                let actual_pos = current_pos + pos;
+                if actual_pos > current_pos {
+                    elements.push(
+                        text(&content[current_pos..actual_pos])
+                            .font(Font::MONOSPACE)
+                            .size(if is_command { 13 } else { 12 })
+                            .style(if is_command {
+                                if command_failed {
+                                    DraculaTheme::error_command_text()
+                                } else {
+                                    DraculaTheme::command_text()
+                                }
+                            } else {
+                                DraculaTheme::output_text()
+                            })
+                            .into()
+                    );
+                }
+                elements.push(
+                    text(&content[actual_pos..actual_pos + term.len()])
+                        .font(Font::MONOSPACE)
+                        .size(if is_command { 13 } else { 12 })
+                        .style(DraculaTheme::search_highlight())
+                        .into()
+                );
+                current_pos = actual_pos + term.len();
+            }
+            if current_pos < content.len() {
+                elements.push(
+                    text(&content[current_pos..])
+                        .font(Font::MONOSPACE)
+                        .size(if is_command { 13 } else { 12 })
+                        .style(if is_command {
+                            if command_failed {
+                                DraculaTheme::error_command_text()
+                            } else {
+                                DraculaTheme::command_text()
+                            }
+                        } else {
+                            DraculaTheme::output_text()
+                        })
+                        .into()
+                );
+            }
+            row(elements).spacing(0).into()
         }
     } else {
         text(content)
             .font(Font::MONOSPACE)
-            .size(12)
-            .style(DraculaTheme::output_text())
+            .size(if is_command { 13 } else { 12 })
+            .style(if is_command {
+                if command_failed {
+                    DraculaTheme::error_command_text()
+                } else {
+                    DraculaTheme::command_text()
+                }
+            } else {
+                DraculaTheme::output_text()
+            })
+            .into()
     };
     
     // Only add copy button if show_copy is true
@@ -37,7 +102,7 @@ pub fn styled_text<'a>(content: &str, is_command: bool, command_failed: bool, sh
         .align_items(iced::Alignment::Center)
         .into()
     } else {
-        text_element.into()
+        text_element
     }
 }
 

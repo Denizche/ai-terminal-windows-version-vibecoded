@@ -1,13 +1,13 @@
-use iced::widget::{column, container, row, text_input, scrollable, text};
-use iced::{Application, Command, Element, Length, Theme, Font};
+use iced::widget::{container, row, text_input, scrollable};
+use iced::{Application, Command, Element, Length, Theme};
 use iced::keyboard::{self, Event as KeyEvent};
 use iced::event::Event;
 use iced::subscription;
 use std::time::Duration;
 
-use crate::model::{App as AppState, Panel, CommandStatus};
+use crate::model::{App as AppState, Panel};
 use crate::ollama::{api, commands};
-use crate::ui::components::{styled_text, drag_handle, copy_button};
+use crate::ui::components::{drag_handle, TerminalPanel, AiPanel, ShortcutsModal};
 use crate::ui::theme::DraculaTheme;
 use crate::terminal::utils;
 use crate::config::keyboard::{FocusTarget, handle_keyboard_shortcuts};
@@ -44,6 +44,12 @@ pub enum Message {
     ToggleShortcutsModal,
     CopyToClipboard(String, bool),
     HandleCtrlC,
+    ToggleSearch,
+    SearchInput(String),
+    SearchNext,
+    SearchPrev,
+    ClearSearch,
+    ToggleTerminalSearchFocus,
 }
 
 pub struct TerminalApp {
@@ -56,6 +62,19 @@ pub struct TerminalApp {
     password_buffer: String,
     password_mode: bool,
     show_shortcuts_modal: bool,
+    search_mode: bool,
+    search_input: String,
+    search_index: usize,
+    search_matches: Vec<usize>,
+    terminal_panel: TerminalPanel,
+    ai_panel: AiPanel,
+    terminal_focus: bool, // Track if terminal input has focus vs search input
+}
+
+// Add this struct at the top of the file, after the imports
+struct PanelViews<'a> {
+    terminal: Element<'a, Message>,
+    ai: Element<'a, Message>,
 }
 
 impl Application for TerminalApp {
@@ -65,9 +84,36 @@ impl Application for TerminalApp {
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
+        println!("[app.rs] Creating new TerminalApp");
+        let app_state = AppState::new();
+        
+        // Create the initial terminal panel
+        let terminal_panel = TerminalPanel::new(
+            app_state.clone(), 
+            String::new(), 
+            FocusTarget::Terminal,
+            false
+        );
+        
+        let ai_panel = AiPanel::new(
+            app_state.clone(),
+            String::new(),
+            FocusTarget::Terminal
+        );
+        
+        // Create a batch of commands to initialize the app
+        let init_commands = Command::batch(vec![
+            // Force focus on terminal input at startup
+            text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID)),
+            // Move cursor to end to ensure visibility
+            text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID))
+        ]);
+        
+        println!("[app.rs] Initializing with focus on terminal input");
+        
         (
             Self {
-                state: AppState::new(),
+                state: app_state,
                 terminal_input: String::new(),
                 ai_input: String::new(),
                 focus: FocusTarget::Terminal,
@@ -76,8 +122,16 @@ impl Application for TerminalApp {
                 password_buffer: String::new(),
                 password_mode: false,
                 show_shortcuts_modal: false,
+                search_mode: false,
+                search_input: String::new(),
+                search_index: 0,
+                search_matches: Vec::new(),
+                terminal_panel,
+                ai_panel,
+                terminal_focus: true,
             },
-            Command::none(),
+            // Initialize focus at startup
+            init_commands
         )
     }
 
@@ -86,12 +140,114 @@ impl Application for TerminalApp {
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
+        println!("[app.rs] Updating with message: {:?}", message);
+
         // First, check if we have a streaming command that needs polling
         if let Some(command) = self.state.poll_command_output() {
             return command;
         }
 
-        match message {
+        let command = match message {
+            Message::SearchInput(input) => {
+                println!("[app.rs] SearchInput message received with value: '{}'", input);
+                self.search_input = input.clone();
+                self.search_index = 0;
+                self.search_matches = Vec::new();
+                
+                // When typing in search, we're focused on search
+                self.terminal_focus = false;
+                println!("[app.rs] Setting terminal_focus to false (search has focus)");
+                self.terminal_panel.set_terminal_focus(false);
+                
+                // Note: We're not changing self.focus here because
+                // the global focus remains on the terminal panel
+                
+                if !input.is_empty() {
+                    // Find all matches in the terminal output
+                    let visible_output = if self.state.output.len() > 100 {
+                        self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
+                    } else {
+                        self.state.output.clone()
+                    };
+                    
+                    // Count all matches in each line
+                    for (i, line) in visible_output.iter().enumerate() {
+                        let mut pos = 0;
+                        while let Some(pos_found) = line[pos..].to_lowercase().find(&input.to_lowercase()) {
+                            self.search_matches.push(i);
+                            pos += pos_found + 1;
+                        }
+                    }
+                    println!("[app.rs] Found {} matches for search query", self.search_matches.len());
+                }
+                
+                // Create a new terminal panel with updated search input
+                self.terminal_panel = TerminalPanel::new(
+                    self.state.clone(),
+                    self.terminal_input.clone(), 
+                    self.focus.clone(),
+                    self.search_mode
+                );
+                
+                // Update search count in terminal panel
+                self.terminal_panel.update_search_input(input);
+                self.terminal_panel.update_search_count(self.search_index, self.search_matches.len());
+                
+                // Make sure terminal_focus is false since we're in search
+                self.terminal_panel.set_terminal_focus(false);
+                
+                // Make sure search input keeps focus
+                println!("[app.rs] Focusing search input after SearchInput message");
+                text_input::focus(text_input::Id::new("search_input"))
+            }
+            Message::ToggleSearch => {
+                // Toggle search mode
+                self.search_mode = !self.search_mode;
+                
+                if self.search_mode {
+                    // When turning on search mode:
+                    // 1. Focus should go to search bar
+                    self.terminal_focus = false;
+                    
+                    // 2. Create a new terminal panel with search mode enabled
+                    self.terminal_panel = TerminalPanel::new(
+                        self.state.clone(),
+                        self.terminal_input.clone(), 
+                        self.focus.clone(),
+                        true
+                    );
+                    
+                    // Make sure terminal panel has correct focus state
+                    self.terminal_panel.set_terminal_focus(false);
+                    
+                    // Clear search state
+                    self.search_input.clear();
+                    self.search_matches.clear();
+                    self.search_index = 0;
+                    
+                    // Focus the search input when toggling search on
+                    println!("[app.rs] Toggling search ON, focusing search input");
+                    return text_input::focus(text_input::Id::new("search_input"));
+                } else {
+                    // When turning off search mode:
+                    self.terminal_focus = true;
+                    
+                    // Create a new terminal panel with search mode disabled
+                    self.terminal_panel = TerminalPanel::new(
+                        self.state.clone(),
+                        self.terminal_input.clone(), 
+                        self.focus.clone(),
+                        false
+                    );
+                    
+                    // Make sure terminal panel has correct focus state
+                    self.terminal_panel.set_terminal_focus(true);
+                    
+                    // Focus back on terminal input when search is closed
+                    println!("[app.rs] Toggling search OFF, focusing terminal input");
+                    return text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID));
+                }
+            }
             Message::PollCommandOutput => {
                 if let Some(cmd) = self.state.poll_command_output() {
                     cmd
@@ -100,32 +256,83 @@ impl Application for TerminalApp {
                 }
             }
             Message::TerminalInput(value) => {
+                println!("[app.rs] Received TerminalInput message with value: '{}'", value);
+                println!("[app.rs] Current terminal_input before update: '{}'", self.terminal_input);
                 self.terminal_input = value;
+                println!("[app.rs] Current terminal_input after update: '{}'", self.terminal_input);
+                
+                // When typing in terminal, ensure we're focused on terminal
+                self.terminal_focus = true;
+                println!("[app.rs] Setting terminal_focus to true");
+                self.terminal_panel.set_terminal_focus(true);
+                
+                // Also ensure overall focus is correct
+                self.focus = FocusTarget::Terminal;
+                println!("[app.rs] Focus set to Terminal");
+                
                 // Reset suggestions when input changes
                 self.current_suggestions.clear();
                 self.suggestion_index = 0;
-                Command::none()
+                
+                // Update the terminal panel with the new input
+                self.terminal_panel = TerminalPanel::new(
+                    self.state.clone(),
+                    self.terminal_input.clone(),
+                    self.focus.clone(),
+                    self.search_mode
+                );
+                
+                // Make sure the panel focus is consistent with app state
+                self.terminal_panel.set_terminal_focus(true);
+                
+                // Ensure focus remains on terminal input
+                Command::batch(vec![
+                    text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID)),
+                    text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID))
+                ])
             }
             Message::AIInput(value) => {
                 self.ai_input = value;
                 Command::none()
             }
             Message::ExecuteCommand => {
+                println!("[app.rs] Execute command message received: '{}'", self.terminal_input);
+                
                 if !self.terminal_input.is_empty() {
+                    println!("[app.rs] Executing command: '{}'", self.terminal_input);
                     self.state.input = self.terminal_input.clone();
 
                     // Start command execution
                     self.state.execute_command();
                     self.terminal_input.clear();
+                    
+                    // Reset suggestion state
+                    self.current_suggestions.clear();
+                    self.suggestion_index = 0;
+                    
+                    // Update the terminal panel with the cleared input
+                    self.terminal_panel = TerminalPanel::new(
+                        self.state.clone(), 
+                        self.terminal_input.clone(),
+                        self.focus.clone(),
+                        self.search_mode
+                    );
 
                     // Add slight delay before scrolling to improve smoothness
                     let scroll_cmd = components::scrollable_container::scroll_to_bottom();
-                    return Command::batch(vec![
+                    
+                    // Keep focus on the terminal input field after execution
+                    let focus_cmd = text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID));
+                    
+                    Command::batch(vec![
                         Command::perform(async {}, |_| Message::NoOp),
                         scroll_cmd,
-                    ]);
+                        focus_cmd,
+                    ])
+                } else {
+                    // Even if no command, ensure focus remains on terminal input
+                    text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID))
                 }
-                Command::none()
             }
             Message::ProcessAIQuery => {
                 if !self.ai_input.is_empty() {
@@ -253,10 +460,10 @@ impl Application for TerminalApp {
 
                         // Add slight delay before scrolling to improve smoothness
                         let scroll_cmd = components::scrollable_container::scroll_to_bottom();
-                        return Command::batch(vec![
+                        Command::batch(vec![
                             Command::perform(async {}, |_| Message::NoOp),
                             scroll_cmd,
-                        ]);
+                        ])
                     }
                     Err(error) => {
                         println!("Processing error response: {}", error);
@@ -271,10 +478,10 @@ impl Application for TerminalApp {
 
                         // Add slight delay before scrolling to improve smoothness
                         let scroll_cmd = components::scrollable_container::scroll_to_bottom();
-                        return Command::batch(vec![
+                        Command::batch(vec![
                             Command::perform(async {}, |_| Message::NoOp),
                             scroll_cmd,
-                        ]);
+                        ])
                     }
                 }
             }
@@ -376,36 +583,58 @@ impl Application for TerminalApp {
                 Command::none()
             }
             Message::TabPressed => {
-                println!("[app.rs] Tab pressed message received");
+                println!("[app.rs] Tab pressed message received for autocomplete");
+                
+                // Tab should now only handle autocomplete, not context switching
                 if self.focus == FocusTarget::Terminal {
-                    println!("[app.rs] Focus is on terminal");
+                    // If search mode is not active, handle autocomplete suggestions for terminal input
+                    println!("[app.rs] Getting autocomplete suggestions");
 
                     // If we don't have any suggestions yet, get them
                     if self.current_suggestions.is_empty() {
                         println!("[app.rs] Getting new suggestions");
                         self.state.input = self.terminal_input.clone();
                         self.current_suggestions = self.state.get_autocomplete_suggestions();
-                        self.suggestion_index = 0;
                         println!("[app.rs] Got suggestions: {:?}", self.current_suggestions);
-                    } else {
-                        // We already have suggestions, move to the next one
-                        println!("[app.rs] Moving to next suggestion");
-                        self.suggestion_index = (self.suggestion_index + 1) % self.current_suggestions.len();
-                    }
-
-                    // Apply the current suggestion if we have any
+                    } 
+                    
+                    // Apply suggestions if available
                     if !self.current_suggestions.is_empty() {
-                        println!("[app.rs] Using suggestion {}: {}", self.suggestion_index, self.current_suggestions[self.suggestion_index]);
-                        self.terminal_input = self.current_suggestions[self.suggestion_index].clone();
-                        // Move cursor to end after applying suggestion
-                        return text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID));
-                    } else {
-                        println!("[app.rs] No suggestions found");
+                        // We have suggestions, move to the next one if there are multiple
+                        if self.current_suggestions.len() > 1 {
+                            self.suggestion_index = (self.suggestion_index + 1) % self.current_suggestions.len();
+                            println!("[app.rs] Moving to suggestion {}/{}", 
+                                self.suggestion_index + 1, self.current_suggestions.len());
+                        }
+
+                        // Apply the current suggestion
+                        let suggestion = self.current_suggestions[self.suggestion_index].clone();
+                        println!("[app.rs] Using suggestion: {}", suggestion);
+                        self.terminal_input = suggestion;
+                        
+                        // Update the terminal panel with the new input
+                        self.terminal_panel = TerminalPanel::new(
+                            self.state.clone(),
+                            self.terminal_input.clone(),
+                            self.focus.clone(),
+                            self.search_mode
+                        );
+
+                        // Make sure the panel focus is consistent with app state
+                        self.terminal_panel.set_terminal_focus(true);
+
+                        // Move cursor to end after applying suggestion and make sure terminal is focused
+                        return Command::batch(vec![
+                            text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID)),
+                            text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID))
+                        ]);
                     }
-                } else {
-                    println!("[app.rs] Focus is not on terminal");
-                    self.focus = FocusTarget::Terminal;
+                    
+                    // Even if no suggestions, ensure focus is on terminal input
+                    return text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID));
                 }
+                
+                // If not on terminal, do nothing for Tab
                 Command::none()
             }
             Message::NoOp => {
@@ -424,9 +653,10 @@ impl Application for TerminalApp {
             }
             Message::TerminateCommand => {
                 if let Some(cmd) = self.state.terminate_running_command() {
-                    return cmd;
+                    cmd
+                } else {
+                    Command::none()
                 }
-                Command::none()
             }
             Message::ToggleShortcutsModal => {
                 self.show_shortcuts_modal = !self.show_shortcuts_modal;
@@ -441,7 +671,9 @@ impl Application for TerminalApp {
                 if self.state.command_receiver.is_some() {
                     // There's a running command, terminate it
                     if let Some(cmd) = self.state.terminate_running_command() {
-                        return cmd;
+                        cmd
+                    } else {
+                        Command::none()
                     }
                 } else {
                     // No running command, try to get selected text from OS clipboard
@@ -456,24 +688,113 @@ impl Application for TerminalApp {
                             });
                         }
                     }
+                    Command::none()
+                }
+            }
+            Message::SearchNext => {
+                if let Some(index) = self.search_matches.get(self.search_index) {
+                    let visible_output = if self.state.output.len() > 100 {
+                        self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
+                    } else {
+                        self.state.output.clone()
+                    };
+                    self.terminal_input = visible_output[*index].clone();
+                    self.search_index = (self.search_index + 1) % self.search_matches.len();
+                    // Update search count in terminal panel
+                    self.terminal_panel.update_search_count(self.search_index, self.search_matches.len());
                 }
                 Command::none()
             }
-        }
+            Message::SearchPrev => {
+                if let Some(index) = self.search_matches.get(self.search_index) {
+                    let visible_output = if self.state.output.len() > 100 {
+                        self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
+                    } else {
+                        self.state.output.clone()
+                    };
+                    self.terminal_input = visible_output[*index].clone();
+                    self.search_index = if self.search_index == 0 { self.search_matches.len() - 1 } else { self.search_index - 1 };
+                    // Update search count in terminal panel
+                    self.terminal_panel.update_search_count(self.search_index, self.search_matches.len());
+                }
+                Command::none()
+            }
+            Message::ClearSearch => {
+                self.search_input.clear();
+                self.search_matches.clear();
+                self.search_index = 0;
+                
+                // Recreate terminal panel with cleared search
+                self.terminal_panel = TerminalPanel::new(
+                    self.state.clone(),
+                    self.terminal_input.clone(), 
+                    self.focus.clone(),
+                    self.search_mode
+                );
+                
+                // Update search count in terminal panel
+                self.terminal_panel.update_search_count(0, 0);
+                
+                // Focus remains on search but terminal_focus should be false
+                self.terminal_focus = false;
+                self.terminal_panel.set_terminal_focus(false);
+                // Focus back on the search input
+                return text_input::focus(text_input::Id::new("search_input"));
+            }
+            Message::ToggleTerminalSearchFocus => {
+                // This is now triggered by Ctrl+Tab or Escape
+                println!("[app.rs] ToggleTerminalSearchFocus triggered (Ctrl+Tab)");
+                
+                // Only toggle focus between terminal and search input when search is active
+                if self.search_mode {
+                    // Toggle terminal focus - if currently on search, switch to terminal and vice versa
+                    self.terminal_focus = !self.terminal_focus;
+                    // Sync the focus state to the panel
+                    self.terminal_panel.set_terminal_focus(self.terminal_focus);
+                    
+                    if self.terminal_focus {
+                        // Focus the terminal input and ensure global focus is terminal
+                        self.focus = FocusTarget::Terminal;
+                        println!("[app.rs] Context switch: Focusing terminal input");
+                        return text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID));
+                    } else {
+                        // Focus the search input
+                        println!("[app.rs] Context switch: Focusing search input");
+                        return text_input::focus(text_input::Id::new("search_input"));
+                    }
+                } else {
+                    // If search is not active, focus the terminal input
+                    self.terminal_focus = true;
+                    self.terminal_panel.set_terminal_focus(true);
+                    self.focus = FocusTarget::Terminal;
+                    println!("[app.rs] Context switch: Focusing terminal input (search inactive)");
+                    return text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID));
+                }
+            }
+        };
+
+        // Update panels with current state
+        // We already updated the terminal panel in individual handlers
+        self.ai_panel = AiPanel::new(
+            self.state.clone(),
+            self.ai_input.clone(),
+            self.focus.clone(),
+        );
+
+        command
     }
 
     fn view(&self) -> Element<Message> {
-        let terminal_panel = self.view_terminal_panel();
-        let ai_panel = self.view_ai_panel();
+        let views = self.create_panel_views();
 
-        // Build the main content
+        // Build the main content using the stored views
         let content = row![
-            container(terminal_panel)
+            container(views.terminal)
                 .width(Length::FillPortion(self.state.panel_ratio as u16))
                 .height(Length::Fill)
                 .style(DraculaTheme::container_style()),
             drag_handle(),
-            container(ai_panel)
+            container(views.ai)
                 .width(Length::FillPortion((100 - self.state.panel_ratio) as u16))
                 .height(Length::Fill)
                 .style(DraculaTheme::container_style()),
@@ -484,7 +805,7 @@ impl Application for TerminalApp {
         if self.show_shortcuts_modal {
             // Create a floating container for the modal
             container(
-                container(self.view_shortcuts_modal())
+                container(ShortcutsModal::view())
                     .width(Length::Fixed(450.0))
                     .padding(20)
                     .style(DraculaTheme::modal_style())
@@ -504,7 +825,17 @@ impl Application for TerminalApp {
     fn subscription(&self) -> iced::Subscription<Message> {
         struct EventHandler;
         impl EventHandler {
-            fn handle(event: Event, _status: iced::event::Status) -> Option<Message> {
+            fn handle(event: Event, status: iced::event::Status) -> Option<Message> {
+                // Log status when we receive keyboard events
+                if let Event::Keyboard(key_event) = &event {
+                    println!("[app.rs:subscription] Keyboard event: {:?}, status: {:?}", key_event, status);
+                    
+                    // Special handling for character events
+                    if let KeyEvent::CharacterReceived(ch) = key_event {
+                        println!("[app.rs:subscription] Character received: '{}'", ch);
+                    }
+                }
+                
                 if let Event::Keyboard(key_event) = event {
                     match key_event {
                         KeyEvent::KeyPressed {
@@ -514,39 +845,60 @@ impl Application for TerminalApp {
                         } if modifiers.control() => {
                             // If text is selected in an input field, copy it
                             // Otherwise, terminate running commands
+                            println!("[app.rs:subscription] Ctrl+C pressed");
                             return Some(Message::HandleCtrlC);
                         }
                         KeyEvent::KeyPressed {
                             key_code: keyboard::KeyCode::Tab,
                             modifiers,
                             ..
-                        } if !modifiers.alt() && !modifiers.control() && !modifiers.shift() => {
+                        } if modifiers.control() => {
+                            // Ctrl+Tab is now used for switching context between search and terminal
+                            println!("[app.rs:subscription] Ctrl+Tab pressed, switching context");
+                            Some(Message::ToggleTerminalSearchFocus)
+                        }
+                        KeyEvent::KeyPressed {
+                            key_code: keyboard::KeyCode::Tab,
+                            modifiers,
+                            ..
+                        } if !modifiers.alt() && !modifiers.shift() => {
+                            // Regular Tab (without Ctrl) is used for autocomplete
+                            println!("[app.rs:subscription] Tab key pressed for autocomplete");
                             Some(Message::TabPressed)
                         }
                         KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Up,
+                            key_code: keyboard::KeyCode::Enter,
+                            modifiers,
                             ..
-                        } => Some(Message::HistoryUp),
+                        } if !modifiers.alt() && !modifiers.control() && !modifiers.shift() => {
+                            // Handle Enter key explicitly for command execution
+                            println!("[app.rs:subscription] Enter key pressed, sending ExecuteCommand");
+                            Some(Message::ExecuteCommand)
+                        }
                         KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Down,
+                            key_code,
+                            modifiers,
                             ..
-                        } => Some(Message::HistoryDown),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Left,
-                            modifiers,
-                        } if modifiers.alt() => Some(Message::ResizeLeft),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Right,
-                            modifiers,
-                        } if modifiers.alt() => Some(Message::ResizeRight),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Grave,
-                            modifiers,
-                        } if modifiers.shift() => Some(Message::TildePressed),
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::E,
-                            modifiers,
-                        } if modifiers.control() => Some(Message::ToggleFocus),
+                        } => {
+                            // For debugging, log all key presses
+                            println!("[app.rs:subscription] Key pressed: {:?}, modifiers: {:?}", key_code, modifiers);
+                            
+                            match key_code {
+                                keyboard::KeyCode::Up => Some(Message::HistoryUp),
+                                keyboard::KeyCode::Down => Some(Message::HistoryDown),
+                                keyboard::KeyCode::Left if modifiers.alt() => Some(Message::ResizeLeft),
+                                keyboard::KeyCode::Right if modifiers.alt() => Some(Message::ResizeRight),
+                                keyboard::KeyCode::Grave if modifiers.shift() => Some(Message::TildePressed),
+                                keyboard::KeyCode::E if modifiers.control() => Some(Message::ToggleFocus),
+                                keyboard::KeyCode::F if modifiers.control() => Some(Message::ToggleSearch),
+                                keyboard::KeyCode::Escape => {
+                                    // Explicitly handle Escape key for toggling focus in search mode
+                                    println!("[app.rs:subscription] Escape key pressed");
+                                    Some(Message::ToggleTerminalSearchFocus)
+                                }
+                                _ => None,
+                            }
+                        }
                         _ => None,
                     }
                 } else {
@@ -590,315 +942,6 @@ impl Application for TerminalApp {
 }
 
 impl TerminalApp {
-    fn view_terminal_panel(&self) -> Element<Message> {
-        let mut blocks = Vec::new();
-        let mut current_block = Vec::new();
-
-        // Group commands and their outputs into blocks
-        // Only render the last N blocks for better performance
-        let visible_output = if self.state.output.len() > 100 {
-            // Only show the last 100 lines for better performance
-            self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
-        } else {
-            self.state.output.clone()
-        };
-
-        for line in &visible_output {
-            if line.starts_with("> ") && !current_block.is_empty() {
-                // If we were building a previous block, add it
-                blocks.push(current_block);
-                current_block = Vec::new();
-            }
-            current_block.push(line.clone());
-        }
-        
-        // Add the last block if any
-        if !current_block.is_empty() {
-            blocks.push(current_block);
-        }
-
-        // Get status for each block
-        let mut block_status = self.state.command_status.clone();
-        // Add a default status for the initial instructions block if needed
-        if blocks.len() > block_status.len() {
-            block_status.insert(0, CommandStatus::Success);
-        }
-
-        // Create styled blocks
-        let output_elements: Element<_> = column(
-            blocks.iter().enumerate().map(|(i, block)| {
-                // Check if this block has a failure status for coloring the command line
-                let has_failed = i < block_status.len() && block_status[i] == CommandStatus::Failure;
-                
-                // Use different block style based on command success/failure
-                let style = if has_failed {
-                    DraculaTheme::failure_command_block_style()
-                } else {
-                    DraculaTheme::command_block_style()
-                };
-
-                // Determine if we should show copy button for this block
-                let show_copy = i >= self.state.initial_output_count || 
-                    (block.iter().any(|line| line.starts_with("> ")) && 
-                     !block.iter().any(|line| line.contains("Welcome") || line.contains("Operating System")) && 
-                     !self.state.command_history.is_empty());
-                
-                // Create layout with block content and optional copy button
-                if show_copy {
-                    container(
-                        column![
-                            container(
-                                column(
-                                    block.iter().map(|line| {
-                                        styled_text(
-                                            line,
-                                            line.starts_with("> "),
-                                            line.starts_with("> ") && has_failed,
-                                            false // Don't show copy button for individual lines
-                                        )
-                                    }).collect()
-                                ).spacing(2)
-                                .width(Length::Fill)
-                            )
-                            .padding(10)
-                            .width(Length::Fill),
-                            container(
-                                row![
-                                    iced::widget::horizontal_space(Length::Fill),
-                                    copy_button(block.join("\n\n"))
-                                ]
-                            )
-                            .padding([0, 10, 10, 10])
-                        ]
-                    )
-                    .width(Length::Fill)
-                    .style(style)
-                    .into()
-                } else {
-                    container(
-                        column(
-                            block.iter().map(|line| {
-                                styled_text(
-                                    line,
-                                    line.starts_with("> "),
-                                    line.starts_with("> ") && has_failed,
-                                    false // Don't show copy button for individual lines
-                                )
-                            }).collect()
-                        ).spacing(2)
-                        .width(Length::Fill)
-                    )
-                    .padding(10)
-                    .width(Length::Fill)
-                    .style(style)
-                    .into()
-                }
-            }).collect()
-        )
-        .spacing(10)
-        .width(Length::Fill)
-        .into();
-
-        let terminal_output = components::scrollable_container::scrollable_container(output_elements);
-
-        // Add shortcuts button at the top
-        let shortcuts_button = iced::widget::button(text("Shortcuts").size(14))
-            .on_press(Message::ToggleShortcutsModal)
-            .padding([4, 8])
-            .style(DraculaTheme::button_style());
-
-        let button_container = container(shortcuts_button)
-            .width(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Right)
-            .padding([5, 10])
-            .style(DraculaTheme::transparent_container_style());
-
-        let dir_path = if let Some(home) = dirs_next::home_dir() {
-            if let Ok(path) = self.state.current_dir.strip_prefix(&home) {
-                format!("~/{}", path.display())
-            } else {
-                self.state.current_dir.display().to_string()
-            }
-        } else {
-            self.state.current_dir.display().to_string()
-        };
-
-        // Create directory path display, possibly with git info
-        let current_dir_content = if self.state.is_git_repo {
-            if let Some(branch) = &self.state.git_branch {
-                row![
-                    styled_text(&dir_path, false, false, false),
-                    styled_text(" ", false, false, false),
-                    crate::ui::components::git_branch_text(branch)
-                ]
-            } else {
-                row![styled_text(&dir_path, false, false, false)]
-            }
-        } else {
-            row![styled_text(&dir_path, false, false, false)]
-        };
-
-        let current_dir = container(current_dir_content)
-            .padding(5)
-            .width(Length::Fill)
-            .style(DraculaTheme::current_dir_style());
-
-        let input = if self.state.password_mode {
-            // Password input field (hidden text)
-            text_input("Enter password...", &self.terminal_input)
-                .on_input(Message::TerminalInput)
-                .on_submit(Message::SendInput(self.terminal_input.clone()))  // Send password on Enter
-                .password()  // This makes the input field hide the text
-                .padding(5)
-                .font(Font::MONOSPACE)
-                .size(12)
-                .id(text_input::Id::new(TERMINAL_INPUT_ID))
-                .style(if self.focus == FocusTarget::Terminal {
-                    DraculaTheme::focused_text_input_style()
-                } else {
-                    DraculaTheme::text_input_style()
-                })
-        } else {
-            // Normal command input field
-            text_input("Enter command...", &self.terminal_input)
-                .on_input(Message::TerminalInput)
-                .on_submit(Message::ExecuteCommand)
-                .padding(5)
-                .font(Font::MONOSPACE)
-                .size(12)
-                .id(text_input::Id::new(TERMINAL_INPUT_ID))
-                .style(if self.focus == FocusTarget::Terminal {
-                    DraculaTheme::focused_text_input_style()
-                } else {
-                    DraculaTheme::text_input_style()
-                })
-        };
-
-        column![
-            button_container,
-            terminal_output,
-            current_dir,
-            input,
-        ]
-        .spacing(10)
-        .padding(10)
-        .into()
-    }
-
-    fn view_ai_panel(&self) -> Element<Message> {
-        let mut blocks = Vec::new();
-        let mut current_block = Vec::new();
-
-        // Group AI messages and responses into blocks
-        // Only render the last N blocks for better performance
-        let visible_output = if self.state.ai_output.len() > 50 {
-            // Only show the last 50 lines for better performance
-            self.state.ai_output.iter().skip(self.state.ai_output.len() - 50).cloned().collect()
-        } else {
-            self.state.ai_output.clone()
-        };
-
-        // Group AI messages and responses into blocks
-        for line in &visible_output {
-            if line.starts_with("> ") && !current_block.is_empty() {
-                // If we were building a previous block, add it
-                blocks.push(current_block);
-                current_block = Vec::new();
-            }
-            current_block.push(line.clone());
-        }
-        
-        // Add the last block if any
-        if !current_block.is_empty() {
-            blocks.push(current_block);
-        }
-
-        // Create styled blocks
-        let output_elements: Element<_> = column(
-            blocks.iter().enumerate().map(|(i, block)| {
-                // Determine if we should show copy button for this block
-                let show_copy = i >= self.state.initial_ai_output_count || 
-                    !block.iter().any(|line| line.contains("instruction") || line.contains("welcome"));
-                
-                if show_copy {
-                    container(
-                        column![
-                            container(
-                                column(
-                                    block.iter().map(|line| {
-                                        styled_text(
-                                            line,
-                                            line.starts_with("> "),
-                                            false, // AI commands don't have failure status
-                                            false  // Don't show copy button for individual lines
-                                        )
-                                    }).collect()
-                                ).spacing(2)
-                                .width(Length::Fill)
-                            )
-                            .padding(10)
-                            .width(Length::Fill),
-                            container(
-                                row![
-                                    iced::widget::horizontal_space(Length::Fill),
-                                    copy_button(block.join("\n\n"))
-                                ]
-                            )
-                            .padding([0, 10, 10, 10])
-                        ]
-                    )
-                    .width(Length::Fill)
-                    .style(DraculaTheme::command_block_style())
-                    .into()
-                } else {
-                    container(
-                        column(
-                            block.iter().map(|line| {
-                                styled_text(
-                                    line,
-                                    line.starts_with("> "),
-                                    false, // AI commands don't have failure status
-                                    false  // Don't show copy button for individual lines
-                                )
-                            }).collect()
-                        ).spacing(2)
-                        .width(Length::Fill)
-                    )
-                    .padding(10)
-                    .width(Length::Fill)
-                    .style(DraculaTheme::command_block_style())
-                    .into()
-                }
-            }).collect()
-        )
-        .spacing(10)
-        .width(Length::Fill)
-        .into();
-
-        let ai_output = components::scrollable_container::scrollable_container(output_elements);
-
-        let input = text_input("Ask AI...", &self.ai_input)
-            .on_input(Message::AIInput)
-            .on_submit(Message::ProcessAIQuery)
-            .padding(5)
-            .font(Font::MONOSPACE)
-            .size(12)
-            .id(text_input::Id::new(AI_INPUT_ID))
-            .style(if self.focus == FocusTarget::AiChat {
-                DraculaTheme::focused_text_input_style()
-            } else {
-                DraculaTheme::text_input_style()
-            });
-
-        column![
-            ai_output,
-            input,
-        ]
-        .spacing(10)
-        .padding(10)
-        .into()
-    }
-
     fn create_ollama_context(&self, query: &str) -> String {
         format!(
             "System Info: {}\n\nRecent Terminal Output:\n{}\n\nRecent Chat History:\n{}\n\nUser query: {}\n\nCurrent directory: {}",
@@ -953,90 +996,11 @@ impl TerminalApp {
         }
     }
 
-    fn view_shortcuts_modal(&self) -> Element<Message> {
-        // Create a modal with shortcut information
-        column![
-            // Modal title
-            container(
-                row![
-                    text("Keyboard Shortcuts")
-                        .size(20)
-                        .style(DraculaTheme::PURPLE),
-                    iced::widget::horizontal_space(Length::Fill),
-                    iced::widget::button(text("Close").size(14))
-                        .on_press(Message::ToggleShortcutsModal)
-                        .padding(5)
-                        .style(DraculaTheme::close_button_style())
-                ]
-                .spacing(10)
-                .width(Length::Fill)
-            )
-            .width(Length::Fill)
-            .padding(5),
-            
-            // Section: Navigation
-            container(
-                column![
-                    text("Navigation").size(16).style(DraculaTheme::PINK),
-                    self.shortcut_row("Ctrl+E", "Toggle focus between terminal and AI chat"),
-                    self.shortcut_row("Alt+Left", "Decrease terminal panel width"),
-                    self.shortcut_row("Alt+Right", "Increase terminal panel width"),
-                ]
-                .spacing(8)
-            )
-            .width(Length::Fill)
-            .padding(10),
-            
-            // Section: History
-            container(
-                column![
-                    text("History").size(16).style(DraculaTheme::PINK),
-                    self.shortcut_row("Up", "Previous command in history"),
-                    self.shortcut_row("Down", "Next command in history"),
-                ]
-                .spacing(8)
-            )
-            .width(Length::Fill)
-            .padding(10),
-            
-            // Section: Commands
-            container(
-                column![
-                    text("Commands").size(16).style(DraculaTheme::PINK),
-                    self.shortcut_row("Tab", "Autocomplete command"),
-                    self.shortcut_row("Ctrl+C", "Terminate running command"),
-                    self.shortcut_row("Shift+`", "Insert tilde character"),
-                ]
-                .spacing(8)
-            )
-            .width(Length::Fill)
-            .padding(10),
-        ]
-        .spacing(10)
-        .width(Length::Fill)
-        .into()
-    }
-    
-    // Helper method to create a shortcut row
-    fn shortcut_row<'a>(&self, shortcut: &str, description: &str) -> Element<'a, Message> {
-        row![
-            container(
-                text(shortcut)
-                    .size(14)
-                    .style(DraculaTheme::CYAN)
-            )
-            .width(Length::Fixed(120.0))
-            .padding(5)
-            .style(DraculaTheme::shortcut_key_style()),
-            text(description)
-                .size(14)
-                .style(DraculaTheme::FOREGROUND)
-                .width(Length::Fill)
-        ]
-        .align_items(iced::alignment::Alignment::Center)
-        .spacing(10)
-        .width(Length::Fill)
-        .into()
+    fn create_panel_views(&self) -> PanelViews<'_> {
+        PanelViews {
+            terminal: self.terminal_panel.view(),
+            ai: self.ai_panel.view(),
+        }
     }
 }
 
