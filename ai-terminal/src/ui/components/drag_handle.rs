@@ -3,7 +3,7 @@ use iced::{Element, Length};
 
 use crate::ui::theme::DraculaTheme;
 
-pub fn drag_handle<'a>() -> Element<'a, crate::app::Message> {
+pub fn drag_handle<'a>() -> Element<'a, crate::ui::messages::Message> {
     container(text(""))
         .width(Length::Fixed(2.0))
         .height(Length::Fill)

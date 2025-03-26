@@ -9,11 +9,30 @@ use crate::model::{CommandStatus, Panel};
 
 impl crate::model::App {
     pub fn new() -> Self {
-        // Always start at the root directory
-        let current_dir = PathBuf::from("/");
+        // Start with root directory as default
+        let mut current_dir = PathBuf::from("/");
 
         // Set the current working directory to the root
-        let _ = env::set_current_dir(&current_dir);
+        // Ensure we properly handle errors when setting the current directory
+        if let Err(e) = env::set_current_dir(&current_dir) {
+            eprintln!("Warning: Failed to set current directory to /: {}", e);
+            // In case of error, try to use the home directory instead
+            if let Some(home) = dirs_next::home_dir() {
+                if let Err(e) = env::set_current_dir(&home) {
+                    eprintln!("Warning: Failed to set current directory to home: {}", e);
+                } else {
+                    // Successfully set to home directory
+                    eprintln!("Using home directory instead: {:?}", home);
+                    current_dir = home;
+                }
+            }
+        }
+        
+        // Double-check the actual current directory after attempts to set it
+        if let Ok(actual_dir) = env::current_dir() {
+            current_dir = actual_dir;
+        }
+        eprintln!("App initialized with current directory: {:?}", current_dir);
 
         // Detect OS information
         let os_info = detect_os();

@@ -28,7 +28,7 @@ impl text_input::StyleSheet for TextInputStyle {
     }
 
     fn value_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::FOREGROUND
+        Color::WHITE // Pure white for maximum visibility
     }
 
     fn selection_color(&self, _style: &Self::Style) -> Color {
@@ -88,7 +88,11 @@ impl text_input::StyleSheet for FocusedTextInputStyle {
     }
 
     fn value_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::CYAN // Make text more visible in focused state
+        Color::from_rgb(
+            0xFF as f32 / 255.0,  // Full intensity red
+            0xFF as f32 / 255.0,  // Full intensity green
+            0xD0 as f32 / 255.0,  // Slightly reduced blue for a clearer appearance
+        ) // Very bright white-yellow for maximum visibility in focused state
     }
 
     fn disabled_color(&self, _style: &Self::Style) -> Color {

@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::io::{BufRead, BufReader, Write};
 use iced::Command as IcedCommand;
-use crate::app::Message;
+use crate::ui::messages::Message;
 use crate::ui::components::scrollable_container;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -155,7 +155,8 @@ impl App {
         
         // Detect if this is a directory listing command
         let is_ls_command = command.trim() == "ls" || command.trim().starts_with("ls ");
-        let buffer_size = if is_ls_command { 500 } else { 1 };
+        // Increase buffer size to handle large directories (especially for root)
+        let buffer_size = if is_ls_command { 2000 } else { 1 };
         
         // Check if this is a sudo command, but don't immediately enable password mode
         thread::spawn(move || {
@@ -199,6 +200,18 @@ impl App {
                .stderr(Stdio::piped())
                .stdin(Stdio::piped());
                
+            // For ls commands, ensure we're using the absolute path
+            if is_ls_command {
+                // Print the working directory for debugging
+                let current_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+                println!("DEBUG: Working directory for ls: {:?}", current_path);
+
+                // Ensure we are in the correct directory
+                if let Err(e) = std::env::set_current_dir(&current_dir) {
+                    tx.send(format!("Error setting directory: {}", e)).ok();
+                }
+            }
+               
             match cmd.spawn() {
                 Ok(mut child) => {
                     let stdout = child.stdout.take().expect("Failed to open stdout");
@@ -217,81 +230,13 @@ impl App {
                     // Thread for stdout - optimize for directory listings
                     let stdout_tx = tx.clone();
                     thread::spawn(move || {
-                        let reader = BufReader::new(stdout);
-                        let mut buffer = Vec::with_capacity(buffer_size);
-                        
-                        for line in reader.lines() {
-                            match line {
-                                Ok(line) => {
-                                    // For ls commands, buffer the output to reduce UI updates
-                                    if is_ls_command && !line.is_empty() {
-                                        buffer.push(line);
-                                        if buffer.len() >= buffer_size {
-                                            // Send batch of lines
-                                            for l in buffer.drain(..) {
-                                                println!("STDOUT: [{}] - Forcing UI refresh", l);
-                                                if stdout_tx.send(l).is_err() {
-                                                    break;
-                                                }
-                                            }
-                                            // Small delay between batches to let UI catch up
-                                            std::thread::sleep(std::time::Duration::from_millis(10));
-                                        }
-                                    } else if !line.is_empty() {
-                                        // For other commands, send each line immediately
-                                        println!("STDOUT: [{}] - Forcing UI refresh", line);
-                                        if stdout_tx.send(line).is_err() {
-                                            break;
-                                        }
-                                        // Force UI refresh by using a zero duration sleep
-                                        std::thread::sleep(std::time::Duration::from_millis(0));
-                                        
-                                        // Also send an empty message after a very short delay to trigger another refresh
-                                        let empty_tx = stdout_tx.clone();
-                                        thread::spawn(move || {
-                                            std::thread::sleep(std::time::Duration::from_millis(5));
-                                            empty_tx.send("".to_string()).ok();
-                                        });
-                                    }
-                                }
-                                Err(_) => break,
-                            }
-                        }
-                        
-                        // Send any remaining buffered lines
-                        for l in buffer {
-                            println!("STDOUT: [{}] - Final batch", l);
-                            stdout_tx.send(l).ok();
-                        }
+                        handle_stream(BufReader::new(stdout), stdout_tx, is_ls_command, buffer_size);
                     });
 
                     // Thread for stderr
                     let stderr_tx = tx.clone();
                     thread::spawn(move || {
-                        let reader = BufReader::new(stderr);
-                        for line in reader.lines() {
-                            match line {
-                                Ok(line) => {
-                                    // Send each line immediately
-                                    if !line.trim().is_empty() {
-                                        println!("STDERR: [{}] - Forcing UI refresh", line);
-                                        if stderr_tx.send(line).is_err() {
-                                            break;
-                                        }
-                                        // Force UI refresh by using a zero duration sleep
-                                        std::thread::sleep(std::time::Duration::from_millis(0));
-                                        
-                                        // Also send an empty message after a very short delay to trigger another refresh
-                                        let empty_tx = stderr_tx.clone();
-                                        thread::spawn(move || {
-                                            std::thread::sleep(std::time::Duration::from_millis(5));
-                                            empty_tx.send("".to_string()).ok();
-                                        });
-                                    }
-                                }
-                                Err(_) => break,
-                            }
-                        }
+                        handle_stream(BufReader::new(stderr), stderr_tx, false, 1);
                     });
 
                     // Wait for the command to finish
@@ -457,5 +402,59 @@ impl App {
             return Some(scrollable_container::scroll_to_bottom());
         }
         None
+    }
+}
+
+// Helper function to handle stdout/stderr streams with proper buffering
+fn handle_stream(stream: impl BufRead, tx: mpsc::Sender<String>, is_ls_command: bool, buffer_size: usize) {
+    let mut buffer = Vec::with_capacity(buffer_size);
+    let mut all_output = String::new();
+    
+    for line in stream.lines() {
+        match line {
+            Ok(line) => {
+                // For ls commands, buffer the output to reduce UI updates
+                if is_ls_command && !line.is_empty() {
+                    buffer.push(line);
+                    
+                    if buffer.len() >= buffer_size {
+                        // For large directories, join all lines and send at once
+                        all_output.push_str(&buffer.join("\n"));
+                        buffer.clear();
+                    }
+                } else if !line.is_empty() {
+                    // For other commands, send each line immediately
+                    println!("STREAM: [{}] - Forcing UI refresh", line);
+                    if tx.send(line).is_err() {
+                        break;
+                    }
+                    // Force UI refresh by using a zero duration sleep
+                    std::thread::sleep(std::time::Duration::from_millis(0));
+                }
+            }
+            Err(e) => {
+                // Send error information to UI
+                if tx.send(format!("Error reading output: {}", e)).is_err() {
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Send any remaining buffered content
+    if !buffer.is_empty() {
+        if all_output.is_empty() {
+            // If we haven't sent anything yet, send the buffer directly
+            for line in buffer {
+                tx.send(line).ok();
+            }
+        } else {
+            // Add remaining buffer to all_output
+            all_output.push_str(&buffer.join("\n"));
+            tx.send(all_output).ok();
+        }
+    } else if !all_output.is_empty() {
+        // Send any accumulated output
+        tx.send(all_output).ok();
     }
 }

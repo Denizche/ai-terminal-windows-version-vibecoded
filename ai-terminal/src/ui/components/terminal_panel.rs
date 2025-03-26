@@ -1,7 +1,7 @@
 use iced::widget::{container, row, text, text_input, button, column};
 use iced::{Element, Length, Font};
 use crate::ui::theme::DraculaTheme;
-use crate::app::Message;
+use crate::ui::messages::Message;
 use crate::config::keyboard::FocusTarget;
 use crate::ui::components::{styled_text, copy_button};
 use crate::ui::components::scrollable_container;
@@ -311,5 +311,10 @@ impl TerminalPanel {
         self.force_refresh = true;
         // Also increment view_update_id to ensure the view is seen as changed
         self.view_update_id = self.view_update_id.wrapping_add(1);
+    }
+
+    /// Update the input value directly
+    pub fn update_input(&mut self, input: String) {
+        self.terminal_input = input;
     }
 } 

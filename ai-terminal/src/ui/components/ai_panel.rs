@@ -1,7 +1,7 @@
 use iced::widget::{container, text_input, column, row};
 use iced::{Element, Length, Font};
 use crate::ui::theme::DraculaTheme;
-use crate::app::Message;
+use crate::ui::messages::Message;
 use crate::config::keyboard::FocusTarget;
 use crate::ui::components::{styled_text, copy_button};
 use crate::ui::components::scrollable_container;
@@ -133,5 +133,10 @@ impl AiPanel {
         .spacing(10)
         .width(Length::Fill)
         .into()
+    }
+
+    /// Update the input value directly
+    pub fn update_input(&mut self, input: String) {
+        self.ai_input = input;
     }
 } 

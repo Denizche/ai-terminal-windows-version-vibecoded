@@ -1,7 +1,7 @@
 use iced::widget::{container, row, text, text_input};
 use iced::{Element, Length, Font};
 use crate::ui::theme::DraculaTheme;
-use crate::app::Message;
+use crate::ui::messages::Message;
 
 #[derive(Debug, Clone)]
 pub struct SearchBar {

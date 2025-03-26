@@ -1,7 +1,7 @@
 use iced::widget::{container, row, text, button, column};
 use iced::{Element, Length};
 use crate::ui::theme::DraculaTheme;
-use crate::app::Message;
+use crate::ui::messages::Message;
 use crate::config::keyboard::get_all_shortcuts;
 
 pub struct ShortcutsModal;

@@ -3,7 +3,7 @@ use iced::{Element, Length, Command};
 use iced::widget::scrollable::{Properties, RelativeOffset};
 use once_cell::sync::Lazy;
 
-use crate::app::Message;
+use crate::ui::messages::Message;
 
 // Use Lazy for static initialization
 static SCROLL_ID: Lazy<scrollable::Id> = Lazy::new(|| scrollable::Id::new("terminal-scroll"));

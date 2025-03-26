@@ -2,7 +2,7 @@ use iced::widget::{text, row, container};
 use iced::{Element, Font, Length};
 
 use crate::ui::theme::DraculaTheme;
-use crate::app::Message;
+use crate::ui::messages::Message;
 use super::copy_button::copy_button;
 
 pub fn styled_text<'a>(content: &str, is_command: bool, command_failed: bool, show_copy: bool, search_term: Option<&str>) -> Element<'a, Message> {
@@ -107,7 +107,7 @@ pub fn styled_text<'a>(content: &str, is_command: bool, command_failed: bool, sh
 }
 
 // Create styled text for git branch info
-pub fn git_branch_text<'a>(branch_name: &str) -> Element<'a, crate::app::Message> {
+pub fn git_branch_text<'a>(branch_name: &str) -> Element<'a, crate::ui::messages::Message> {
     row![
         text("git")
             .font(Font::MONOSPACE)
