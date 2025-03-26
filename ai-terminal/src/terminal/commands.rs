@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::io::{BufRead, BufReader, Write};
 use iced::Command as IcedCommand;
-use crate::app::Message;
+use crate::ui::messages::Message;
 use crate::ui::components::scrollable_container;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -149,6 +149,15 @@ impl App {
         let (input_tx, input_rx) = mpsc::channel::<String>();
         let input_tx_clone = input_tx.clone();
         
+        // Send an initial output to force display refresh
+        // This line helps ensure the UI updates even if command takes time to produce output
+        tx.send(format!("Running command: {}", command)).ok();
+        
+        // Detect if this is a directory listing command
+        let is_ls_command = command.trim() == "ls" || command.trim().starts_with("ls ");
+        // Increase buffer size to handle large directories (especially for root)
+        let buffer_size = if is_ls_command { 2000 } else { 1 };
+        
         // Check if this is a sudo command, but don't immediately enable password mode
         thread::spawn(move || {
             let parts: Vec<&str> = command_clone.split_whitespace().collect();
@@ -191,6 +200,18 @@ impl App {
                .stderr(Stdio::piped())
                .stdin(Stdio::piped());
                
+            // For ls commands, ensure we're using the absolute path
+            if is_ls_command {
+                // Print the working directory for debugging
+                let current_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+                println!("DEBUG: Working directory for ls: {:?}", current_path);
+
+                // Ensure we are in the correct directory
+                if let Err(e) = std::env::set_current_dir(&current_dir) {
+                    tx.send(format!("Error setting directory: {}", e)).ok();
+                }
+            }
+               
             match cmd.spawn() {
                 Ok(mut child) => {
                     let stdout = child.stdout.take().expect("Failed to open stdout");
@@ -206,45 +227,19 @@ impl App {
                         }
                     });
 
-                    // Thread for stdout
+                    // Thread for stdout - optimize for directory listings
                     let stdout_tx = tx.clone();
                     thread::spawn(move || {
-                        let reader = BufReader::new(stdout);
-                        for line in reader.lines() {
-                            match line {
-                                Ok(line) => {
-                                    // Send each line immediately
-                                    if !line.trim().is_empty() {
-                                        if stdout_tx.send(line).is_err() {
-                                            break;
-                                        }
-                                    }
-                                }
-                                Err(_) => break,
-                            }
-                        }
+                        handle_stream(BufReader::new(stdout), stdout_tx, is_ls_command, buffer_size);
                     });
 
                     // Thread for stderr
                     let stderr_tx = tx.clone();
                     thread::spawn(move || {
-                        let reader = BufReader::new(stderr);
-                        for line in reader.lines() {
-                            match line {
-                                Ok(line) => {
-                                    // Send each line immediately
-                                    if !line.trim().is_empty() {
-                                        if stderr_tx.send(line).is_err() {
-                                            break;
-                                        }
-                                    }
-                                }
-                                Err(_) => break,
-                            }
-                        }
+                        handle_stream(BufReader::new(stderr), stderr_tx, false, 1);
                     });
 
-                    // Wait for the command to finish in a background task
+                    // Wait for the command to finish
                     let status_tx = tx.clone();
                     thread::spawn(move || {
                         // Wait for the process to complete
@@ -278,7 +273,8 @@ impl App {
     
     // New method to poll for command output
     pub fn poll_command_output(&mut self) -> Option<IcedCommand<Message>> {
-        if let Some((rx, command_index, command, output_lines, input_tx)) = &self.command_receiver {
+        // Check if there's an active command
+        if let Some((rx, command_index, command, output_lines, _input_tx)) = &self.command_receiver {
             // Try to receive a message without taking ownership
             let result = {
                 let rx_lock = rx.lock().unwrap();
@@ -313,13 +309,26 @@ impl App {
                             };
                         }
                         
+                        // Clone command data before clearing the command_receiver
+                        let cmd_clone = command.clone();
+                        let output_clone = output_lines.clone();
+                        
                         // Store context and clean up
-                        self.last_terminal_context = Some((command.clone(), output_lines.clone()));
+                        self.last_terminal_context = Some((cmd_clone.clone(), output_clone));
                         self.password_mode = false;
                         self.command_receiver = None;
                         
+                        // Check if command was a directory listing (ls) and ensure it's all processed at once
+                        let is_directory_listing = cmd_clone.trim() == "ls" || cmd_clone.trim().starts_with("ls ");
+                        
+                        // For directory listings, wait a brief moment to collect all output before refreshing UI
+                        if is_directory_listing {
+                            std::thread::sleep(std::time::Duration::from_millis(50));
+                        }
+                        
+                        // Force UI update
                         return Some(scrollable_container::scroll_to_bottom());
-                    } else {
+                    } else if !line.is_empty() {
                         // Regular output, add to terminal
                         self.output.push(line.clone());
                         
@@ -328,14 +337,15 @@ impl App {
                             lines.push(line);
                         }
                         
+                        // Force UI update - ensure the display refreshes with every output line
                         return Some(scrollable_container::scroll_to_bottom());
+                    } else {
+                        // Handle empty lines
+                        return None;
                     }
                 }
-                Err(mpsc::TryRecvError::Empty) => {
-                    // No data available right now
-                    return None;
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
+                Err(mpsc::TryRecvError::Empty) => None,
+                Err(_) => {
                     // Channel closed unexpectedly
                     if *command_index < self.command_status.len() {
                         self.command_status[*command_index] = CommandStatus::Failure;
@@ -345,12 +355,13 @@ impl App {
                     self.command_receiver = None;
                     self.password_mode = false;
                     
+                    // Force UI update
                     return Some(scrollable_container::scroll_to_bottom());
                 }
             }
+        } else {
+            None
         }
-        
-        None
     }
 
     // Add this method to handle sending input to the command
@@ -391,5 +402,59 @@ impl App {
             return Some(scrollable_container::scroll_to_bottom());
         }
         None
+    }
+}
+
+// Helper function to handle stdout/stderr streams with proper buffering
+fn handle_stream(stream: impl BufRead, tx: mpsc::Sender<String>, is_ls_command: bool, buffer_size: usize) {
+    let mut buffer = Vec::with_capacity(buffer_size);
+    let mut all_output = String::new();
+    
+    for line in stream.lines() {
+        match line {
+            Ok(line) => {
+                // For ls commands, buffer the output to reduce UI updates
+                if is_ls_command && !line.is_empty() {
+                    buffer.push(line);
+                    
+                    if buffer.len() >= buffer_size {
+                        // For large directories, join all lines and send at once
+                        all_output.push_str(&buffer.join("\n"));
+                        buffer.clear();
+                    }
+                } else if !line.is_empty() {
+                    // For other commands, send each line immediately
+                    println!("STREAM: [{}] - Forcing UI refresh", line);
+                    if tx.send(line).is_err() {
+                        break;
+                    }
+                    // Force UI refresh by using a zero duration sleep
+                    std::thread::sleep(std::time::Duration::from_millis(0));
+                }
+            }
+            Err(e) => {
+                // Send error information to UI
+                if tx.send(format!("Error reading output: {}", e)).is_err() {
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Send any remaining buffered content
+    if !buffer.is_empty() {
+        if all_output.is_empty() {
+            // If we haven't sent anything yet, send the buffer directly
+            for line in buffer {
+                tx.send(line).ok();
+            }
+        } else {
+            // Add remaining buffer to all_output
+            all_output.push_str(&buffer.join("\n"));
+            tx.send(all_output).ok();
+        }
+    } else if !all_output.is_empty() {
+        // Send any accumulated output
+        tx.send(all_output).ok();
     }
 }

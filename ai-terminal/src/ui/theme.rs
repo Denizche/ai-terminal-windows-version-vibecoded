@@ -28,7 +28,7 @@ impl text_input::StyleSheet for TextInputStyle {
     }
 
     fn value_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::FOREGROUND
+        Color::WHITE // Pure white for maximum visibility
     }
 
     fn selection_color(&self, _style: &Self::Style) -> Color {
@@ -69,8 +69,18 @@ impl text_input::StyleSheet for FocusedTextInputStyle {
         }
     }
 
-    fn focused(&self, style: &Self::Style) -> text_input::Appearance {
-        self.active(style)
+    fn focused(&self, _style: &Self::Style) -> text_input::Appearance {
+        text_input::Appearance {
+            background: Color::from_rgb(
+                0x50 as f32 / 255.0,
+                0x54 as f32 / 255.0,
+                0x68 as f32 / 255.0,
+            ).into(),
+            border_radius: 4.0.into(),
+            border_width: 2.5,
+            border_color: DraculaTheme::CYAN,
+            icon_color: DraculaTheme::FOREGROUND,
+        }
     }
 
     fn placeholder_color(&self, _style: &Self::Style) -> Color {
@@ -78,7 +88,11 @@ impl text_input::StyleSheet for FocusedTextInputStyle {
     }
 
     fn value_color(&self, _style: &Self::Style) -> Color {
-        DraculaTheme::FOREGROUND
+        Color::from_rgb(
+            0xFF as f32 / 255.0,  // Full intensity red
+            0xFF as f32 / 255.0,  // Full intensity green
+            0xD0 as f32 / 255.0,  // Slightly reduced blue for a clearer appearance
+        ) // Very bright white-yellow for maximum visibility in focused state
     }
 
     fn disabled_color(&self, _style: &Self::Style) -> Color {
@@ -285,6 +299,10 @@ impl DraculaTheme {
 
     pub fn icon_button_style() -> iced::theme::Button {
         iced::theme::Button::Custom(Box::new(IconButtonStyle))
+    }
+
+    pub fn search_highlight() -> Color {
+        Self::PURPLE
     }
 }
 

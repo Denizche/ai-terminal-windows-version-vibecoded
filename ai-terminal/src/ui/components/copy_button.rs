@@ -1,7 +1,7 @@
 use iced::widget::{button, container, text};
-use iced::{Element, Length};
+use iced::{Element, Length, Color};
 
-use crate::app::Message;
+use crate::ui::messages::Message;
 use crate::ui::theme::DraculaTheme;
 
 pub fn copy_button<'a>(content: String) -> Element<'a, Message> {
