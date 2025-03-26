@@ -45,7 +45,7 @@ pub enum CommandStatus {
 }
 
 // Main application state
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct App {
     // Terminal panel state
     pub input: String,

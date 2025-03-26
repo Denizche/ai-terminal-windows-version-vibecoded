@@ -1,6 +1,6 @@
 use iced::widget::{container, row, text_input, scrollable};
 use iced::{Application, Command, Element, Length, Theme};
-use iced::keyboard::{self, Event as KeyEvent};
+use iced::keyboard::Event as KeyEvent;
 use iced::event::Event;
 use iced::subscription;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use crate::ollama::{api, commands};
 use crate::ui::components::{drag_handle, TerminalPanel, AiPanel, ShortcutsModal};
 use crate::ui::theme::DraculaTheme;
 use crate::terminal::utils;
-use crate::config::keyboard::{FocusTarget, handle_keyboard_shortcuts};
+use crate::config::keyboard::{FocusTarget, handle_keyboard_shortcuts, handle_keyboard_event, ShortcutAction};
 use crate::ui::components;
 
 // Add these constants at the top of the file
@@ -36,6 +36,7 @@ pub enum Message {
     UpdateTerminalOutput(String),
     SendInput(String),
     PollCommandOutput,
+    CheckCommandOutput,
     TabPressed,
     NoOp,
     PasswordInput(String),
@@ -140,9 +141,6 @@ impl Application for TerminalApp {
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
-        println!("[app.rs] Updating with message: {:?}", message);
-
-        // First, check if we have a streaming command that needs polling
         if let Some(command) = self.state.poll_command_output() {
             return command;
         }
@@ -159,13 +157,12 @@ impl Application for TerminalApp {
                 println!("[app.rs] Setting terminal_focus to false (search has focus)");
                 self.terminal_panel.set_terminal_focus(false);
                 
-                // Note: We're not changing self.focus here because
-                // the global focus remains on the terminal panel
+                
                 
                 if !input.is_empty() {
                     // Find all matches in the terminal output
-                    let visible_output = if self.state.output.len() > 100 {
-                        self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
+                    let visible_output = if self.state.output.len() > 2000 {
+                        self.state.output.iter().skip(self.state.output.len() - 2000).cloned().collect()
                     } else {
                         self.state.output.clone()
                     };
@@ -250,9 +247,55 @@ impl Application for TerminalApp {
             }
             Message::PollCommandOutput => {
                 if let Some(cmd) = self.state.poll_command_output() {
+                    // Always recreate the terminal panel to force a view update
+                    self.terminal_panel = TerminalPanel::new(
+                        self.state.clone(),
+                        self.terminal_input.clone(), 
+                        self.focus.clone(),
+                        self.search_mode
+                    );
+                    
+                    // Make sure terminal focus state is preserved
+                    self.terminal_panel.set_terminal_focus(self.terminal_focus);
+                    
                     cmd
                 } else {
                     Command::none()
+                }
+            }
+            Message::CheckCommandOutput => {
+                // Force an immediate check for command output and ensure UI updates
+                if let Some(cmd) = self.state.poll_command_output() {
+                    // Command produced new output
+                    // Force terminal panel refresh
+                    self.terminal_panel = TerminalPanel::new(
+                        self.state.clone(),
+                        self.terminal_input.clone(), 
+                        self.focus.clone(),
+                        self.search_mode
+                    );
+                    
+                    // Make sure terminal focus state is preserved
+                    self.terminal_panel.set_terminal_focus(self.terminal_focus);
+                    
+                    cmd
+                } else {
+                    // Even if there's no new output, we still want to force a UI refresh
+                    // This ensures streaming output is visible even without user interaction
+                    
+                    // Force a panel refresh by creating a new unique panel
+                    self.terminal_panel = TerminalPanel::new(
+                        self.state.clone(),
+                        self.terminal_input.clone(), 
+                        self.focus.clone(),
+                        self.search_mode
+                    );
+                    
+                    // Make sure terminal focus state is preserved
+                    self.terminal_panel.set_terminal_focus(self.terminal_focus);
+                    
+                    // Always return a command to force UI refresh for streaming commands
+                    components::scrollable_container::scroll_to_bottom()
                 }
             }
             Message::TerminalInput(value) => {
@@ -306,18 +349,18 @@ impl Application for TerminalApp {
                     self.state.execute_command();
                     self.terminal_input.clear();
                     
-                    // Reset suggestion state
-                    self.current_suggestions.clear();
-                    self.suggestion_index = 0;
-                    
-                    // Update the terminal panel with the cleared input
+                    // Force an immediate UI update to show command output right away
                     self.terminal_panel = TerminalPanel::new(
                         self.state.clone(), 
                         self.terminal_input.clone(),
                         self.focus.clone(),
                         self.search_mode
                     );
-
+                    
+                    // Reset suggestion state
+                    self.current_suggestions.clear();
+                    self.suggestion_index = 0;
+                    
                     // Add slight delay before scrolling to improve smoothness
                     let scroll_cmd = components::scrollable_container::scroll_to_bottom();
                     
@@ -328,6 +371,18 @@ impl Application for TerminalApp {
                         Command::perform(async {}, |_| Message::NoOp),
                         scroll_cmd,
                         focus_cmd,
+                        // Add an immediate check for command output to display results faster
+                        Command::perform(async {}, |_| Message::CheckCommandOutput),
+                        // Schedule additional checks shortly after
+                        Command::perform(async {
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                        }, |_| Message::CheckCommandOutput),
+                        Command::perform(async {
+                            tokio::time::sleep(Duration::from_millis(30)).await;
+                        }, |_| Message::CheckCommandOutput),
+                        Command::perform(async {
+                            tokio::time::sleep(Duration::from_millis(60)).await;
+                        }, |_| Message::CheckCommandOutput),
                     ])
                 } else {
                     // Even if no command, ensure focus remains on terminal input
@@ -448,16 +503,43 @@ impl Application for TerminalApp {
 
                         // Extract commands from the response
                         let extracted_command = utils::extract_commands(&response);
-                        if !extracted_command.is_empty() {
-                            println!("Extracted command: {}", extracted_command);
-                            self.state.last_ai_command = Some(extracted_command.clone());
-                            self.terminal_input = extracted_command;
-                        }
-
-                        // Add the AI response to output
+                        
+                        // ALWAYS add the AI's full response to the chat output
                         println!("Adding response to output: {}", response);
                         self.state.ai_output.push(response.clone());
+                        
+                        if !extracted_command.is_empty() {
+                            println!("Extracted command: {}", extracted_command);
+                            
+                            // Add the extracted command as a separate message in AI output with an indicator
+                            self.state.ai_output.push(format!("📋 Command: {}", extracted_command));
+                            
+                            // Set the command for execution
+                            self.state.last_ai_command = Some(extracted_command.clone());
+                            self.terminal_input = extracted_command;
+                            
+                            // Recreate the terminal panel to ensure terminal input is visible
+                            self.terminal_panel = TerminalPanel::new(
+                                self.state.clone(),
+                                self.terminal_input.clone(),
+                                self.focus.clone(),
+                                self.search_mode
+                            );
+                            
+                            // Make sure terminal focus state is properly set
+                            self.terminal_panel.set_terminal_focus(true);
+                            self.terminal_focus = true;
+                            
+                            // Return commands to focus terminal input and execute UI refresh
+                            return Command::batch(vec![
+                                Command::perform(async {}, |_| Message::NoOp),
+                                components::scrollable_container::scroll_to_bottom(),
+                                text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID)),
+                                text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID))
+                            ]);
+                        }
 
+                        // If no command was extracted, just scroll to bottom
                         // Add slight delay before scrolling to improve smoothness
                         let scroll_cmd = components::scrollable_container::scroll_to_bottom();
                         Command::batch(vec![
@@ -476,11 +558,25 @@ impl Application for TerminalApp {
                         }
                         self.state.ai_output.push(format!("Error: {}", error));
 
+                        // Since we had an error response, reset terminal panel to ensure proper UI state
+                        self.terminal_panel = TerminalPanel::new(
+                            self.state.clone(),
+                            self.terminal_input.clone(),
+                            self.focus.clone(),
+                            self.search_mode
+                        );
+                        
+                        // Make sure terminal focus state is properly set
+                        self.terminal_panel.set_terminal_focus(true);
+                        self.terminal_focus = true;
+
                         // Add slight delay before scrolling to improve smoothness
                         let scroll_cmd = components::scrollable_container::scroll_to_bottom();
                         Command::batch(vec![
                             Command::perform(async {}, |_| Message::NoOp),
                             scroll_cmd,
+                            text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID)),
+                            text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID)),
                         ])
                     }
                 }
@@ -504,13 +600,18 @@ impl Application for TerminalApp {
             }
             Message::HistoryUp => {
                 if self.focus == FocusTarget::Terminal {
-                    if let Some(current_index) = self.state.command_history_index {
+                    let need_update = if let Some(current_index) = self.state.command_history_index {
                         // Already navigating history, try to go to older command
                         if current_index > 0 {
                             self.state.command_history_index = Some(current_index - 1);
                             if let Some(command) = self.state.command_history.get(current_index - 1) {
                                 self.terminal_input = command.clone();
+                                true
+                            } else {
+                                false
                             }
+                        } else {
+                            false
                         }
                     } else if !self.state.command_history.is_empty() {
                         // Start from the newest command (last in the vector)
@@ -518,25 +619,80 @@ impl Application for TerminalApp {
                         self.state.command_history_index = Some(last_idx);
                         if let Some(command) = self.state.command_history.last() {
                             self.terminal_input = command.clone();
+                            true
+                        } else {
+                            false
                         }
+                    } else {
+                        false
+                    };
+                    
+                    if need_update {
+                        println!("[app.rs] HistoryUp: Updated terminal input to: '{}'", self.terminal_input);
+                        
+                        // Create a new terminal panel with the updated input
+                        // Generate a unique timestamp to force a refresh
+                        self.terminal_panel = TerminalPanel::new(
+                            self.state.clone(),
+                            self.terminal_input.clone(),
+                            self.focus.clone(),
+                            self.search_mode
+                        );
+                        
+                        // Make sure the panel focus is properly set
+                        self.terminal_panel.set_terminal_focus(true);
+                        self.terminal_focus = true;
+                        
+                        // Return a command to focus the terminal input and move cursor to end
+                        return Command::batch(vec![
+                            text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID)),
+                            text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID))
+                        ]);
                     }
                 }
                 Command::none()
             }
             Message::HistoryDown => {
                 if self.focus == FocusTarget::Terminal {
+                    let mut need_update = false;
+                    
                     if let Some(current_index) = self.state.command_history_index {
                         // Move to newer command
                         if current_index < self.state.command_history.len() - 1 {
                             self.state.command_history_index = Some(current_index + 1);
                             if let Some(command) = self.state.command_history.get(current_index + 1) {
                                 self.terminal_input = command.clone();
+                                need_update = true;
                             }
                         } else {
                             // At newest command, clear input
                             self.state.command_history_index = None;
                             self.terminal_input.clear();
+                            need_update = true;
                         }
+                    }
+                    
+                    if need_update {
+                        println!("[app.rs] HistoryDown: Updated terminal input to: '{}'", self.terminal_input);
+                        
+                        // Create a new terminal panel with the updated input
+                        // Generate a unique timestamp to force a refresh
+                        self.terminal_panel = TerminalPanel::new(
+                            self.state.clone(),
+                            self.terminal_input.clone(),
+                            self.focus.clone(),
+                            self.search_mode
+                        );
+                        
+                        // Make sure the panel focus is properly set
+                        self.terminal_panel.set_terminal_focus(true);
+                        self.terminal_focus = true;
+                        
+                        // Return a command to focus the terminal input and move cursor to end
+                        return Command::batch(vec![
+                            text_input::focus(text_input::Id::new(TERMINAL_INPUT_ID)),
+                            text_input::move_cursor_to_end(text_input::Id::new(TERMINAL_INPUT_ID))
+                        ]);
                     }
                 }
                 Command::none()
@@ -693,8 +849,8 @@ impl Application for TerminalApp {
             }
             Message::SearchNext => {
                 if let Some(index) = self.search_matches.get(self.search_index) {
-                    let visible_output = if self.state.output.len() > 100 {
-                        self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
+                    let visible_output = if self.state.output.len() > 2000 {
+                        self.state.output.iter().skip(self.state.output.len() - 2000).cloned().collect()
                     } else {
                         self.state.output.clone()
                     };
@@ -707,8 +863,8 @@ impl Application for TerminalApp {
             }
             Message::SearchPrev => {
                 if let Some(index) = self.search_matches.get(self.search_index) {
-                    let visible_output = if self.state.output.len() > 100 {
-                        self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
+                    let visible_output = if self.state.output.len() > 2000 {
+                        self.state.output.iter().skip(self.state.output.len() - 2000).cloned().collect()
                     } else {
                         self.state.output.clone()
                     };
@@ -837,69 +993,20 @@ impl Application for TerminalApp {
                 }
                 
                 if let Event::Keyboard(key_event) = event {
-                    match key_event {
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::C,
-                            modifiers,
-                            ..
-                        } if modifiers.control() => {
-                            // If text is selected in an input field, copy it
-                            // Otherwise, terminate running commands
-                            println!("[app.rs:subscription] Ctrl+C pressed");
-                            return Some(Message::HandleCtrlC);
-                        }
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Tab,
-                            modifiers,
-                            ..
-                        } if modifiers.control() => {
-                            // Ctrl+Tab is now used for switching context between search and terminal
-                            println!("[app.rs:subscription] Ctrl+Tab pressed, switching context");
-                            Some(Message::ToggleTerminalSearchFocus)
-                        }
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Tab,
-                            modifiers,
-                            ..
-                        } if !modifiers.alt() && !modifiers.shift() => {
-                            // Regular Tab (without Ctrl) is used for autocomplete
-                            println!("[app.rs:subscription] Tab key pressed for autocomplete");
-                            Some(Message::TabPressed)
-                        }
-                        KeyEvent::KeyPressed {
-                            key_code: keyboard::KeyCode::Enter,
-                            modifiers,
-                            ..
-                        } if !modifiers.alt() && !modifiers.control() && !modifiers.shift() => {
-                            // Handle Enter key explicitly for command execution
-                            println!("[app.rs:subscription] Enter key pressed, sending ExecuteCommand");
-                            Some(Message::ExecuteCommand)
-                        }
-                        KeyEvent::KeyPressed {
-                            key_code,
-                            modifiers,
-                            ..
-                        } => {
-                            // For debugging, log all key presses
-                            println!("[app.rs:subscription] Key pressed: {:?}, modifiers: {:?}", key_code, modifiers);
-                            
-                            match key_code {
-                                keyboard::KeyCode::Up => Some(Message::HistoryUp),
-                                keyboard::KeyCode::Down => Some(Message::HistoryDown),
-                                keyboard::KeyCode::Left if modifiers.alt() => Some(Message::ResizeLeft),
-                                keyboard::KeyCode::Right if modifiers.alt() => Some(Message::ResizeRight),
-                                keyboard::KeyCode::Grave if modifiers.shift() => Some(Message::TildePressed),
-                                keyboard::KeyCode::E if modifiers.control() => Some(Message::ToggleFocus),
-                                keyboard::KeyCode::F if modifiers.control() => Some(Message::ToggleSearch),
-                                keyboard::KeyCode::Escape => {
-                                    // Explicitly handle Escape key for toggling focus in search mode
-                                    println!("[app.rs:subscription] Escape key pressed");
-                                    Some(Message::ToggleTerminalSearchFocus)
-                                }
-                                _ => None,
-                            }
-                        }
-                        _ => None,
+                    let action = handle_keyboard_event(key_event);
+                    match action {
+                        ShortcutAction::ToggleFocus => Some(Message::ToggleFocus),
+                        ShortcutAction::ResizeLeft => Some(Message::ResizeLeft),
+                        ShortcutAction::ResizeRight => Some(Message::ResizeRight),
+                        ShortcutAction::HistoryUp => Some(Message::HistoryUp),
+                        ShortcutAction::HistoryDown => Some(Message::HistoryDown),
+                        ShortcutAction::TildeInsert => Some(Message::TildePressed),
+                        ShortcutAction::TerminateCommand => Some(Message::HandleCtrlC),
+                        ShortcutAction::ToggleSearch => Some(Message::ToggleSearch),
+                        ShortcutAction::ToggleTerminalSearchFocus => Some(Message::ToggleTerminalSearchFocus),
+                        ShortcutAction::TabAutocomplete => Some(Message::TabPressed),
+                        ShortcutAction::ExecuteCommand => Some(Message::ExecuteCommand),
+                        ShortcutAction::None => None,
                     }
                 } else {
                     None
@@ -917,26 +1024,74 @@ impl Application for TerminalApp {
                 move |state| async move {
                     match state {
                         State::Ready => {
-                            tokio::time::sleep(Duration::from_millis(1)).await;
+                            // Use 0ms wait time for maximum responsiveness
+                            tokio::time::sleep(Duration::from_millis(0)).await;
                             (Message::PollCommandOutput, State::Waiting)
                         }
                         State::Waiting => {
-                            tokio::time::sleep(Duration::from_millis(1)).await;
+                            // Use 0ms wait time for maximum responsiveness
+                            tokio::time::sleep(Duration::from_millis(0)).await;
                             (Message::PollCommandOutput, State::Waiting)
                         }
                     }
                 },
             )
         } else {
-            subscription::unfold("inactive_poll", (), |_| async {
-                tokio::time::sleep(Duration::from_secs(3600)).await;
-                (Message::PollCommandOutput, ())
+            // Even with no active command, poll regularly but less aggressively
+            subscription::unfold("inactive_poll", State::Ready, |state| async move {
+                match state {
+                    State::Ready => {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        (Message::PollCommandOutput, State::Waiting)
+                    }
+                    State::Waiting => {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        (Message::PollCommandOutput, State::Waiting)
+                    }
+                }
+            })
+        };
+
+        // Add a separate subscription specifically for refreshing the UI
+        // This will continually force UI updates when streaming commands are running
+        let ui_refresh = if self.state.command_receiver.is_some() {
+            subscription::unfold(
+                "ui_refresh",
+                State::Ready,
+                move |state| async move {
+                    match state {
+                        State::Ready => {
+                            // Use extremely short delay for maximum UI responsiveness
+                            tokio::time::sleep(Duration::from_millis(16)).await; // ~60fps refresh rate
+                            (Message::CheckCommandOutput, State::Waiting)
+                        }
+                        State::Waiting => {
+                            tokio::time::sleep(Duration::from_millis(16)).await;
+                            (Message::CheckCommandOutput, State::Waiting)
+                        }
+                    }
+                },
+            )
+        } else {
+            // No-op subscription when no command is running
+            subscription::unfold("inactive_ui_refresh", State::Ready, |state| async move {
+                match state {
+                    State::Ready => {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        (Message::NoOp, State::Waiting)
+                    }
+                    State::Waiting => {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        (Message::NoOp, State::Waiting)
+                    }
+                }
             })
         };
 
         iced::Subscription::batch(vec![
             keyboard_events,
             terminal_poll,
+            ui_refresh, // Add the UI refresh subscription
         ])
     }
 }
@@ -954,12 +1109,10 @@ impl TerminalApp {
     }
 
     pub fn handle_input(&mut self, key_event: KeyEvent) {
-        match key_event {
-            KeyEvent::KeyPressed { 
-                key_code: keyboard::KeyCode::Tab,
-                modifiers,
-                ..
-            } if !modifiers.alt() && !modifiers.control() && !modifiers.shift() => {
+        let action = handle_keyboard_event(key_event);
+        
+        match action {
+            ShortcutAction::TabAutocomplete => {
                 println!("[app.rs] Tab key pressed in handle_input");
                 if self.focus == FocusTarget::Terminal {
                     println!("[app.rs] Focus is on terminal, getting suggestions");
@@ -977,12 +1130,13 @@ impl TerminalApp {
                     println!("[app.rs] Focus is not on terminal");
                 }
                 return;
-            }
-            _ => {
+            },
+            ShortcutAction::ToggleFocus => {
                 if handle_keyboard_shortcuts(key_event, &mut self.focus) {
                     return;
                 }
-            }
+            },
+            _ => {}
         }
         
         // Handle other input based on focus

@@ -149,6 +149,14 @@ impl App {
         let (input_tx, input_rx) = mpsc::channel::<String>();
         let input_tx_clone = input_tx.clone();
         
+        // Send an initial output to force display refresh
+        // This line helps ensure the UI updates even if command takes time to produce output
+        tx.send(format!("Running command: {}", command)).ok();
+        
+        // Detect if this is a directory listing command
+        let is_ls_command = command.trim() == "ls" || command.trim().starts_with("ls ");
+        let buffer_size = if is_ls_command { 500 } else { 1 };
+        
         // Check if this is a sudo command, but don't immediately enable password mode
         thread::spawn(move || {
             let parts: Vec<&str> = command_clone.split_whitespace().collect();
@@ -206,22 +214,54 @@ impl App {
                         }
                     });
 
-                    // Thread for stdout
+                    // Thread for stdout - optimize for directory listings
                     let stdout_tx = tx.clone();
                     thread::spawn(move || {
                         let reader = BufReader::new(stdout);
+                        let mut buffer = Vec::with_capacity(buffer_size);
+                        
                         for line in reader.lines() {
                             match line {
                                 Ok(line) => {
-                                    // Send each line immediately
-                                    if !line.trim().is_empty() {
+                                    // For ls commands, buffer the output to reduce UI updates
+                                    if is_ls_command && !line.is_empty() {
+                                        buffer.push(line);
+                                        if buffer.len() >= buffer_size {
+                                            // Send batch of lines
+                                            for l in buffer.drain(..) {
+                                                println!("STDOUT: [{}] - Forcing UI refresh", l);
+                                                if stdout_tx.send(l).is_err() {
+                                                    break;
+                                                }
+                                            }
+                                            // Small delay between batches to let UI catch up
+                                            std::thread::sleep(std::time::Duration::from_millis(10));
+                                        }
+                                    } else if !line.is_empty() {
+                                        // For other commands, send each line immediately
+                                        println!("STDOUT: [{}] - Forcing UI refresh", line);
                                         if stdout_tx.send(line).is_err() {
                                             break;
                                         }
+                                        // Force UI refresh by using a zero duration sleep
+                                        std::thread::sleep(std::time::Duration::from_millis(0));
+                                        
+                                        // Also send an empty message after a very short delay to trigger another refresh
+                                        let empty_tx = stdout_tx.clone();
+                                        thread::spawn(move || {
+                                            std::thread::sleep(std::time::Duration::from_millis(5));
+                                            empty_tx.send("".to_string()).ok();
+                                        });
                                     }
                                 }
                                 Err(_) => break,
                             }
+                        }
+                        
+                        // Send any remaining buffered lines
+                        for l in buffer {
+                            println!("STDOUT: [{}] - Final batch", l);
+                            stdout_tx.send(l).ok();
                         }
                     });
 
@@ -234,9 +274,19 @@ impl App {
                                 Ok(line) => {
                                     // Send each line immediately
                                     if !line.trim().is_empty() {
+                                        println!("STDERR: [{}] - Forcing UI refresh", line);
                                         if stderr_tx.send(line).is_err() {
                                             break;
                                         }
+                                        // Force UI refresh by using a zero duration sleep
+                                        std::thread::sleep(std::time::Duration::from_millis(0));
+                                        
+                                        // Also send an empty message after a very short delay to trigger another refresh
+                                        let empty_tx = stderr_tx.clone();
+                                        thread::spawn(move || {
+                                            std::thread::sleep(std::time::Duration::from_millis(5));
+                                            empty_tx.send("".to_string()).ok();
+                                        });
                                     }
                                 }
                                 Err(_) => break,
@@ -244,7 +294,7 @@ impl App {
                         }
                     });
 
-                    // Wait for the command to finish in a background task
+                    // Wait for the command to finish
                     let status_tx = tx.clone();
                     thread::spawn(move || {
                         // Wait for the process to complete
@@ -278,7 +328,8 @@ impl App {
     
     // New method to poll for command output
     pub fn poll_command_output(&mut self) -> Option<IcedCommand<Message>> {
-        if let Some((rx, command_index, command, output_lines, input_tx)) = &self.command_receiver {
+        // Check if there's an active command
+        if let Some((rx, command_index, command, output_lines, _input_tx)) = &self.command_receiver {
             // Try to receive a message without taking ownership
             let result = {
                 let rx_lock = rx.lock().unwrap();
@@ -313,13 +364,26 @@ impl App {
                             };
                         }
                         
+                        // Clone command data before clearing the command_receiver
+                        let cmd_clone = command.clone();
+                        let output_clone = output_lines.clone();
+                        
                         // Store context and clean up
-                        self.last_terminal_context = Some((command.clone(), output_lines.clone()));
+                        self.last_terminal_context = Some((cmd_clone.clone(), output_clone));
                         self.password_mode = false;
                         self.command_receiver = None;
                         
+                        // Check if command was a directory listing (ls) and ensure it's all processed at once
+                        let is_directory_listing = cmd_clone.trim() == "ls" || cmd_clone.trim().starts_with("ls ");
+                        
+                        // For directory listings, wait a brief moment to collect all output before refreshing UI
+                        if is_directory_listing {
+                            std::thread::sleep(std::time::Duration::from_millis(50));
+                        }
+                        
+                        // Force UI update
                         return Some(scrollable_container::scroll_to_bottom());
-                    } else {
+                    } else if !line.is_empty() {
                         // Regular output, add to terminal
                         self.output.push(line.clone());
                         
@@ -328,14 +392,15 @@ impl App {
                             lines.push(line);
                         }
                         
+                        // Force UI update - ensure the display refreshes with every output line
                         return Some(scrollable_container::scroll_to_bottom());
+                    } else {
+                        // Handle empty lines
+                        return None;
                     }
                 }
-                Err(mpsc::TryRecvError::Empty) => {
-                    // No data available right now
-                    return None;
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
+                Err(mpsc::TryRecvError::Empty) => None,
+                Err(_) => {
                     // Channel closed unexpectedly
                     if *command_index < self.command_status.len() {
                         self.command_status[*command_index] = CommandStatus::Failure;
@@ -345,12 +410,13 @@ impl App {
                     self.command_receiver = None;
                     self.password_mode = false;
                     
+                    // Force UI update
                     return Some(scrollable_container::scroll_to_bottom());
                 }
             }
+        } else {
+            None
         }
-        
-        None
     }
 
     // Add this method to handle sending input to the command

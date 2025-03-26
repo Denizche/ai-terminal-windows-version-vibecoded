@@ -2,11 +2,33 @@ use iced::widget::{container, row, text, button, column};
 use iced::{Element, Length};
 use crate::ui::theme::DraculaTheme;
 use crate::app::Message;
+use crate::config::keyboard::get_all_shortcuts;
 
 pub struct ShortcutsModal;
 
 impl ShortcutsModal {
     pub fn view() -> Element<'static, Message> {
+        // Get all the shortcuts from the central keyboard definitions
+        let all_shortcuts = get_all_shortcuts();
+        
+        // Create completely separate pre-processed lists for each category
+        let mut nav_elements = Vec::new();
+        let mut history_elements = Vec::new();
+        let mut command_elements = Vec::new();
+        
+        // Process all shortcuts and categorize them
+        for (shortcut, description) in all_shortcuts {
+            let element = Self::shortcut_row(&shortcut, &description);
+            
+            if description.contains("focus") || description.contains("width") || description.contains("panel") {
+                nav_elements.push(element);
+            } else if description.contains("history") {
+                history_elements.push(element);
+            } else {
+                command_elements.push(element);
+            }
+        }
+
         column![
             // Modal title
             container(
@@ -30,9 +52,7 @@ impl ShortcutsModal {
             container(
                 column![
                     text("Navigation").size(16).style(DraculaTheme::PINK),
-                    Self::shortcut_row("Ctrl+E", "Toggle focus between terminal and AI chat"),
-                    Self::shortcut_row("Alt+Left", "Decrease terminal panel width"),
-                    Self::shortcut_row("Alt+Right", "Increase terminal panel width"),
+                    column(nav_elements).spacing(8)
                 ]
                 .spacing(8)
             )
@@ -43,8 +63,7 @@ impl ShortcutsModal {
             container(
                 column![
                     text("History").size(16).style(DraculaTheme::PINK),
-                    Self::shortcut_row("Up", "Previous command in history"),
-                    Self::shortcut_row("Down", "Next command in history"),
+                    column(history_elements).spacing(8)
                 ]
                 .spacing(8)
             )
@@ -55,10 +74,7 @@ impl ShortcutsModal {
             container(
                 column![
                     text("Commands").size(16).style(DraculaTheme::PINK),
-                    Self::shortcut_row("Tab", "Autocomplete command"),
-                    Self::shortcut_row("Ctrl+C", "Terminate running command"),
-                    Self::shortcut_row("Shift+`", "Insert tilde character"),
-                    Self::shortcut_row("Ctrl+F", "Toggle search in terminal"),
+                    column(command_elements).spacing(8)
                 ]
                 .spacing(8)
             )
@@ -70,17 +86,18 @@ impl ShortcutsModal {
         .into()
     }
 
-    fn shortcut_row<'a>(shortcut: &'a str, description: &'a str) -> Element<'a, Message> {
+    fn shortcut_row(shortcut: &str, description: &str) -> Element<'static, Message> {
+        // Create the row with owned String data to avoid lifetimes issues
         row![
             container(
-                text(shortcut)
+                text(shortcut.to_string())
                     .size(14)
                     .style(DraculaTheme::CYAN)
             )
             .width(Length::Fixed(120.0))
             .padding(5)
             .style(DraculaTheme::shortcut_key_style()),
-            text(description)
+            text(description.to_string())
                 .size(14)
                 .style(DraculaTheme::FOREGROUND)
                 .width(Length::Fill)

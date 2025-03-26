@@ -3,6 +3,7 @@ use iced::{Element, Length, Font};
 use crate::ui::theme::DraculaTheme;
 use crate::app::Message;
 
+#[derive(Debug, Clone)]
 pub struct SearchBar {
     input: String,
     current_index: usize,

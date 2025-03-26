@@ -10,28 +10,40 @@ use crate::ui::components::git_branch_text;
 
 const TERMINAL_INPUT_ID: &str = "terminal_input";
 
+#[derive(Debug, Clone)]
 pub struct TerminalPanel {
     state: AppState,
     terminal_input: String,
     focus: FocusTarget,
     search_mode: bool,
-    search_bar: super::search::SearchBar,
     terminal_focus: bool,
+    view_update_id: u64,
+    search_bar: super::search::SearchBar,
+    force_refresh: bool,
 }
 
 impl TerminalPanel {
     pub fn new(state: AppState, terminal_input: String, focus: FocusTarget, search_mode: bool) -> Self {
-        Self {
+        // Use the current time to ensure panel views are never identical when created
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+            
+        TerminalPanel {
             state,
             terminal_input,
             focus,
             search_mode,
-            search_bar: super::search::SearchBar::new(),
             terminal_focus: true,
+            view_update_id: now,
+            search_bar: super::search::SearchBar::new(),
+            force_refresh: true,
         }
     }
 
     pub fn view(&self) -> Element<Message> {
+                
         let output_elements = self.view_output_elements();
         let terminal_output = scrollable_container::scrollable_container(output_elements);
 
@@ -77,22 +89,55 @@ impl TerminalPanel {
         let mut blocks = Vec::new();
         let mut current_block = Vec::new();
 
-        let visible_output = if self.state.output.len() > 100 {
-            self.state.output.iter().skip(self.state.output.len() - 100).cloned().collect()
+        let visible_output = if self.state.output.len() > 2000 {
+            self.state.output.iter().skip(self.state.output.len() - 2000).cloned().collect()
         } else {
             self.state.output.clone()
         };
 
-        for line in &visible_output {
-            if line.starts_with("> ") && !current_block.is_empty() {
-                blocks.push(current_block);
-                current_block = Vec::new();
+        // Special handling for large output blocks (like directory listings)
+        // Check if visible_output contains 'ls' command followed by many short lines (directory listing)
+        let is_large_dir_listing = visible_output.iter()
+            .any(|line| line.starts_with("> ls") || line.starts_with("> ls ")) &&
+            visible_output.iter().filter(|line| line.len() < 60 && !line.starts_with(">")).count() > 50;
+            
+        // If this looks like a directory listing, use special formatting
+        if is_large_dir_listing {
+            // Find the command line index
+            for (i, line) in visible_output.iter().enumerate() {
+                if line.starts_with("> ls") {
+                    // Get command line and all output after it
+                    let mut command_block = vec![line.clone()];
+                    if i+1 < visible_output.len() && visible_output[i+1] == "Running command: ls" {
+                        command_block.push(visible_output[i+1].clone());
+                    }
+                    
+                    // Add directory listing as a single block
+                    let listing_start = if visible_output.get(i+1).map_or(false, |l| l == "Running command: ls") { i+2 } else { i+1 };
+                    let directory_listing: Vec<String> = visible_output.iter()
+                        .skip(listing_start)
+                        .take(visible_output.len() - listing_start)
+                        .cloned()
+                        .collect();
+                    
+                    blocks.push(command_block);
+                    blocks.push(directory_listing);
+                    break;
+                }
             }
-            current_block.push(line.clone());
-        }
-        
-        if !current_block.is_empty() {
-            blocks.push(current_block);
+        } else {
+            // Standard output block processing
+            for line in &visible_output {
+                if line.starts_with("> ") && !current_block.is_empty() {
+                    blocks.push(current_block);
+                    current_block = Vec::new();
+                }
+                current_block.push(line.clone());
+            }
+            
+            if !current_block.is_empty() {
+                blocks.push(current_block);
+            }
         }
 
         let mut block_status = self.state.command_status.clone();
@@ -204,12 +249,7 @@ impl TerminalPanel {
             .into()
     }
 
-    fn view_input(&self) -> Element<Message> {
-        println!("[terminal_panel.rs] view_input called with focus={:?}, search_mode={}, terminal_focus={}", 
-            self.focus, self.search_mode, self.terminal_focus);
-        println!("[terminal_panel.rs] Current terminal input: '{}', length: {}", 
-            self.terminal_input, self.terminal_input.len());
-            
+    fn view_input(&self) -> Element<Message> {     
         if self.state.password_mode {
             text_input("Enter password...", &self.terminal_input)
                 .on_input(Message::TerminalInput)
@@ -235,9 +275,7 @@ impl TerminalPanel {
                 .id(text_input::Id::new(TERMINAL_INPUT_ID));
 
             // Determine if this input should appear focused
-            let is_focused = self.focus == FocusTarget::Terminal && (!self.search_mode || self.terminal_focus);
-            println!("[terminal_panel.rs] Terminal input should be focused: {}", is_focused);
-            
+            let is_focused = self.focus == FocusTarget::Terminal && (!self.search_mode || self.terminal_focus);            
             let styled_input = if is_focused {
                 input.style(DraculaTheme::focused_text_input_style())
             } else {
@@ -265,8 +303,13 @@ impl TerminalPanel {
     }
 
     pub fn set_terminal_focus(&mut self, focus: bool) {
-        println!("[terminal_panel.rs] Setting terminal_focus to {} (search bar focus: {})", focus, !focus);
         self.terminal_focus = focus;
         self.search_bar.set_focused(!focus);
+    }
+
+    pub fn force_refresh(&mut self) {
+        self.force_refresh = true;
+        // Also increment view_update_id to ensure the view is seen as changed
+        self.view_update_id = self.view_update_id.wrapping_add(1);
     }
 } 

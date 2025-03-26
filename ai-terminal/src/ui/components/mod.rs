@@ -13,7 +13,6 @@ pub use drag_handle::drag_handle;
 pub use copy_button::copy_button;
 pub use scrollable_container::scrollable_container;
 pub use git_branch_text::git_branch_text;
-pub use search::SearchBar;
 pub use shortcuts_modal::ShortcutsModal;
 pub use terminal_panel::TerminalPanel;
 pub use ai_panel::AiPanel;
