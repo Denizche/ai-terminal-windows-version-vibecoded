@@ -552,6 +552,16 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       });
 
       lastIndex = match.index + match[0].length;
+
+      // Check if there's a newline character (↵) after this command
+      const nextChar = response[lastIndex];
+      if (nextChar === '↵') {
+        results.push({
+          command: '',
+          fullText: '\n'
+        });
+        lastIndex++;
+      }
     }
 
     // Process any remaining text for single backticks
@@ -600,6 +610,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
         }
       });
 
+      // Join with newlines to preserve the model's formatting
       return { 
         formattedText: formattedParts.join('\n'),
         codeBlocks 
@@ -882,14 +893,8 @@ IMPORTANT RULES:
           const commandParts = this.parseCommandFromResponse(response);
           const hasCommands = commandParts.some(part => part.command);
           if (hasCommands) {
-            console.log("Detected commands in response:", commandParts);
             // If this is a direct shell command question, we can enhance the UI by marking it as a command
-            if (this.currentQuestion.toLowerCase().includes("command") || 
-                this.currentQuestion.toLowerCase().includes("how do i") ||
-                this.currentQuestion.toLowerCase().startsWith("show me") ||
-                this.currentQuestion.toLowerCase().startsWith("execute")) {
-              chatEntry.isCommand = true;
-            }
+            chatEntry.isCommand = true;
           }
         }
       }

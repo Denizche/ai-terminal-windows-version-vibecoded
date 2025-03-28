@@ -411,6 +411,17 @@ button {
   margin-left: 8px;
   position: relative;
   padding-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-output > div {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .copy-icon {
@@ -699,6 +710,17 @@ button {
   word-wrap: break-word;
   max-width: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-output > div {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 /* Single line code blocks (no newlines) */
@@ -849,23 +871,18 @@ button {
 .command-actions {
   display: inline-flex;
   gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
   position: absolute;
-  right: -84px; /* Adjust based on the total width of your icons */
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
-}
-
-.simple-command:hover .command-actions {
-  opacity: 1;
+  padding: 2px 4px;
 }
 
 .command-action-button {
   background: none;
   border: none;
   padding: 2px;
-  color: rgba(80, 250, 123, 0.4);
+  color: rgba(255, 255, 255, 0.4); /* Transparent white */
   cursor: pointer;
   transition: color 0.2s ease;
   display: flex;
@@ -874,7 +891,7 @@ button {
 }
 
 .command-action-button:hover {
-  color: #50fa7b;
+  color: rgba(255, 255, 255, 0.8); /* More opaque white on hover */
   background: none;
 }
 
@@ -885,6 +902,11 @@ button {
 
 .command-text {
   color: #50fa7b;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 
 /* Code block actions container */
@@ -905,25 +927,21 @@ button {
   padding: 4px 8px;
   margin: 4px 0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  background-color: rgba(80, 250, 123, 0.05);
+  background-color: rgba(80, 250, 123, 0.03); /* More transparent background */
   border: 1px solid rgba(80, 250, 123, 0.1);
   border-radius: 6px;
   transition: all 0.2s ease;
   width: fit-content;
   position: relative;
+  margin-right: 8px;
+  flex-shrink: 0;
+  padding-right: 84px; /* Space for icons */
 }
 
 .simple-command:hover {
   background-color: rgba(80, 250, 123, 0.08);
   border-color: rgba(80, 250, 123, 0.15);
   box-shadow: 0 2px 8px rgba(80, 250, 123, 0.05);
-}
-
-.command-text {
-  color: #50fa7b;
-  cursor: pointer;
-  white-space: nowrap;
-  font-weight: 500;
 }
 
 .command-output {
@@ -952,18 +970,6 @@ button {
   border-bottom: 1px solid rgba(139, 233, 253, 0.2);
   padding-bottom: 8px;
   margin-bottom: 8px;
-}
-
-.command-output {
-  margin-left: 24px;
-  color: #f8f8f2;
-  white-space: pre;
-  opacity: 0.85;
-  position: relative;
-  font-size: 12px;
-  line-height: 1.5;
-  user-select: text;
-  padding-top: 8px;
 }
 
 .chat-question {
