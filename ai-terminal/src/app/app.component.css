@@ -373,8 +373,12 @@ button {
 }
 
 .chat-entry {
-  margin-bottom: 8px;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  margin-bottom: 20px;
+  padding: 8px;
+  border: 1px solid #44475a;
+  border-radius: 8px;
+  opacity: 0.9;
+  transition: all 0.2s ease;
 }
 
 .chat-line {
@@ -382,6 +386,9 @@ button {
   align-items: flex-start;
   margin-bottom: 4px;
   font-size: 12px;
+  border-bottom: 1px solid rgba(139, 233, 253, 0.2);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
 }
 
 .chat-line .prompt {
@@ -401,6 +408,9 @@ button {
   font-size: 12px;
   white-space: pre-wrap;
   word-wrap: break-word;
+  margin-left: 24px;
+  position: relative;
+  padding-top: 8px;
 }
 
 .copy-icon {
