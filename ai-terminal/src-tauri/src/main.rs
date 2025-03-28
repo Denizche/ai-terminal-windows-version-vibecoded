@@ -91,8 +91,8 @@ fn execute_command(
     if command.starts_with("cd ") || command == "cd" {
         let path = command.trim_start_matches("cd").trim();
         
-        // Handle empty cd or cd ~ to go to home directory
-        if path.is_empty() || path == "~" {
+        // Handle empty cd, cd ~, or cd ~/ to go to home directory
+        if path.is_empty() || path == "~" || path == "~/" {
             if let Some(home_dir) = dirs::home_dir() {
                 let home_path = home_dir.to_string_lossy().to_string();
                 state.current_dir = home_path.clone();
@@ -110,7 +110,20 @@ fn execute_command(
         
         // Create a path object for proper path resolution
         let current_path = std::path::Path::new(&state.current_dir);
-        let new_path = if path.starts_with('/') {
+        let new_path = if path.starts_with('~') {
+            // Handle paths starting with ~ by expanding to home directory
+            if let Some(home_dir) = dirs::home_dir() {
+                let without_tilde = path.trim_start_matches('~');
+                let rel_path = without_tilde.trim_start_matches('/');
+                if rel_path.is_empty() {
+                    home_dir
+                } else {
+                    home_dir.join(rel_path)
+                }
+            } else {
+                return Err("Could not determine home directory".to_string());
+            }
+        } else if path.starts_with('/') {
             std::path::PathBuf::from(path)
         } else {
             // For parent directory navigation (..) and relative paths

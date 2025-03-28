@@ -209,7 +209,7 @@ button {
   align-items: flex-start;
   background-color: #282a36;
   border-radius: 8px;
-  margin: 16px;
+  margin: 4px 16px 16px 16px;
   flex-direction: column;
   width: calc(100% - 32px);
   box-sizing: border-box;
@@ -232,14 +232,14 @@ button {
 
 .current-directory {
   font-weight: bold;
-  padding: 8px 16px;
+  padding: 4px 16px;
   width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   background-color: #282a36;
   font-size: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .prompt-container {

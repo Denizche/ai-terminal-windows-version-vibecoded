@@ -1011,7 +1011,8 @@ Available commands:
 /models - List available models
 /model [name] - Show current model or switch to a different model
 /host [url] - Show current API host or set a new one
-/retry - Retry connection to Ollama API`;
+/retry - Retry connection to Ollama API
+/clear - Clear the AI chat history`;
       
       case '/models':
         try {
@@ -1068,6 +1069,11 @@ Available commands:
         // Retry connection and return a message
         setTimeout(() => this.retryOllamaConnection(), 100);
         return `Attempting to reconnect to Ollama API...`;
+
+      case '/clear':
+        // Clear the chat history
+        this.chatHistory = [];
+        return `AI chat history cleared`;
         
       default:
         return `Unknown command: ${cmd}. Type /help for available commands.`;
