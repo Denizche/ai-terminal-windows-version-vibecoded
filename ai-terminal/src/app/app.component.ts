@@ -1458,7 +1458,7 @@ Using: ${this.currentLLMModel}`,
     }
   }
 
-  // Method to copy question back to input
+  // Method to copy question back to input and send it
   copyQuestionToInput(question: string): void {
     // Set the current question
     this.currentQuestion = question;
@@ -1469,12 +1469,24 @@ Using: ${this.currentLLMModel}`,
       if (textarea) {
         (textarea as HTMLTextAreaElement).focus();
       }
+      
+      // Create and dispatch an Enter key event to send the question
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true
+      });
+      
+      // Send the question
+      this.askAI(event);
     }, 0);
     
     // Show a brief notification
     const notification = document.createElement('div');
     notification.className = 'copy-notification';
-    notification.textContent = 'Question copied to input';
+    notification.textContent = 'Question copied and sent';
     document.body.appendChild(notification);
     
     // Animate and remove notification
