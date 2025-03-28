@@ -13,6 +13,7 @@
 .logo.angular:hover {
   filter: drop-shadow(0 0 2em #e32727);
 }
+
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
@@ -89,6 +90,7 @@ button {
 button:hover {
   border-color: #396cd8;
 }
+
 button:active {
   border-color: #396cd8;
   background-color: #e8e8e8;
@@ -118,6 +120,7 @@ button {
     color: #ffffff;
     background-color: #0f0f0f98;
   }
+
   button:active {
     background-color: #0f0f0f69;
   }
@@ -188,7 +191,8 @@ button {
   box-shadow: 0 4px 12px rgba(80, 250, 123, 0.1), 0 0 3px rgba(80, 250, 123, 0.15);
 }
 
-.terminal-panel .input-area:hover, .terminal-panel .input-area:focus-within {
+.terminal-panel .input-area:hover,
+.terminal-panel .input-area:focus-within {
   box-shadow: 0 6px 16px rgba(80, 250, 123, 0.15), 0 0 6px rgba(80, 250, 123, 0.2);
 }
 
@@ -198,7 +202,8 @@ button {
   box-shadow: 0 4px 12px rgba(189, 147, 249, 0.1), 0 0 3px rgba(189, 147, 249, 0.15);
 }
 
-.ai-panel .input-area:hover, .ai-panel .input-area:focus-within {
+.ai-panel .input-area:hover,
+.ai-panel .input-area:focus-within {
   box-shadow: 0 6px 16px rgba(189, 147, 249, 0.15), 0 0 6px rgba(189, 147, 249, 0.2);
 }
 
@@ -218,7 +223,8 @@ button {
   transition: box-shadow 0.3s ease;
 }
 
-.input-area:hover, .input-area:focus-within {
+.input-area:hover,
+.input-area:focus-within {
   transform: none;
 }
 
@@ -426,7 +432,7 @@ button {
   gap: 4px;
 }
 
-.chat-output > div {
+.chat-output>div {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
@@ -623,9 +629,17 @@ button {
 }
 
 @keyframes pulse {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
 }
 
 /* Make the terminal more responsive */
@@ -643,35 +657,48 @@ button {
 
 /* Command status colors */
 .command-success {
-  color: #50fa7b; /* Dracula green */
+  color: #50fa7b;
+  /* Dracula green */
   font-weight: bold;
 }
 
 .command-error {
-  color: #ff5555; /* Dracula red */
+  color: #ff5555;
+  /* Dracula red */
   font-weight: bold;
 }
 
 .command-running {
-  color: #f1fa8c; /* Dracula yellow */
+  color: #f1fa8c;
+  /* Dracula yellow */
   font-weight: bold;
   animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
-  0% { opacity: 0.7; }
-  50% { opacity: 1; }
-  100% { opacity: 0.7; }
+  0% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.7;
+  }
 }
 
 /* Terminal panel full width when AI panel is hidden */
 .terminal-panel.full-width {
-  width: calc(100% - 16px) !important; /* Adjust for margins */
+  width: calc(100% - 16px) !important;
+  /* Adjust for margins */
   max-width: 100%;
 }
 
 /* Terminal header styling */
-.terminal-header, .ai-header {
+.terminal-header,
+.ai-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -837,7 +864,7 @@ button {
   gap: 4px;
 }
 
-.chat-output > div {
+.chat-output>div {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1054,8 +1081,10 @@ button {
   border: 1px solid rgba(80, 250, 123, 0.2);
 }
 
-.command-history, .chat-history {
-  user-select: text; /* Allow selection in command and chat history */
+.command-history,
+.chat-history {
+  user-select: text;
+  /* Allow selection in command and chat history */
 }
 
 /* Add a class for disabling selection during resize */
@@ -1128,7 +1157,8 @@ button {
   padding: 4px 8px;
   margin: 4px 0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  background-color: rgba(35, 214, 81, 0.08); /* More transparent background */
+  background-color: rgba(35, 214, 81, 0.08);
+  /* More transparent background */
   border: 1px solid rgba(80, 250, 123, 0.1);
   border-radius: 6px;
   transition: all 0.2s ease;
@@ -1136,7 +1166,8 @@ button {
   position: relative;
   margin-right: 8px;
   flex-shrink: 0;
-  padding-right: 84px; /* Space for icons */
+  padding-right: 84px;
+  /* Space for icons */
 }
 
 .command-output {
@@ -1145,7 +1176,8 @@ button {
   margin: 4px 0;
   border-radius: 4px;
   background-color: rgba(40, 42, 54, 0.3);
-  padding-bottom: 40px; /* Add padding to make room for the buttons */
+  padding-bottom: 40px;
+  /* Add padding to make room for the buttons */
 }
 
 .command-output div {
@@ -1328,11 +1360,11 @@ button {
     font-size: 11px;
     min-width: 80px;
   }
-  
+
   .command-text {
     font-size: 11px;
   }
-  
+
   .command-explanation {
     font-size: 11px;
     margin-left: 4px;
@@ -1470,4 +1502,12 @@ button {
   opacity: 1;
   visibility: visible;
   transform: translateX(-50%) translateY(-4px);
+}
+
+/* Password input styling */
+.password-input {
+  font-family: monospace;
+  letter-spacing: 2px;
+  color: #ffcc00 !important;
+  /* More visible password dots */
 }
