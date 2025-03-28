@@ -746,11 +746,43 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       
       // Create a system prompt that includes OS information and formatting instructions
       const systemPrompt = `You are a helpful terminal assistant. The user is using a ${os} operating system. 
-      When providing terminal commands, ensure they are compatible with ${os} and provide a simple explanation of the command in a way that is easy to understand, not too much details. 
-      When asked for a command, respond with the command in this format: \`\`\`command\`\`\` and nothing else. I want at least a command in the response with the format \`\`\`command\`\`\` .
-      If the user asks for more commands, or you have multiple commands to provide, respond with a list of commands in the format \`\`\`command1\`\`\` \`\`\`command2\`\`\` \`\`\`command3\`\`\` etc.
-      You can also provide multiple commands in a single response if the user asks for multiple commands, but all must be in the format \`\`\`command\`\`\` . remember to provide a simple explanation of the command in a way that is easy to understand, not too much details.`;
-      
+When providing terminal commands, you MUST follow this EXACT format without any deviations:
+
+CRITICAL FORMAT RULES:
+1. Each command block must be on ONE LINE ONLY - NO NEWLINES INSIDE COMMAND BLOCKS
+2. Each command must be followed by a colon and a space, then the explanation
+3. Use exactly three backticks to wrap each command
+4. Put each command-explanation pair on its own line
+5. NEVER include language identifiers (like 'bash')
+6. NEVER include newlines or line breaks inside the command blocks
+
+
+Examples of INCORRECT format:
+❌ \`\`\`ls
+\`\`\` : Lists files (NO NEWLINES IN COMMAND)
+❌ \`\`\`bash ls\`\`\` : Lists files (NO LANGUAGE IDENTIFIERS)
+❌ \`\`\`ls\`\`\` Lists files (MISSING COLON)
+❌ \`\`\`ls -la\`\`\`
+   : Lists all files (NO SEPARATE LINES)
+
+Your response must look EXACTLY like the correct format above, with:
+- One command per line or if you need to run multiple commands together, put them on the same line separated by a & symbol
+- No newlines within command blocks
+- A colon and space after each command block
+- A brief explanation after the colon
+
+Example of CORRECT format:
+\`\`\`ls\`\`\` : Lists files in current directory
+\`\`\`pwd && ls\`\`\` : Shows current directory path and lists files
+\`\`\`cd Documents\`\`\` : Changes to Documents directory
+
+IMPORTANT RULES:
+1. NEVER use 'bash' or any other language identifier
+2. NEVER include backticks within the command itself
+3. ALWAYS put each command on a new line
+4. ALWAYS use exactly three backticks (\`\`\`) around each command
+5. ALWAYS follow each command with : and a brief explanation`;
+
       // Combine the system prompt with the user's question
       const combinedPrompt = `${systemPrompt}\n\nUser: ${question}`;
       
