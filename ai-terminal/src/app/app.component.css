@@ -947,7 +947,8 @@ button {
 .command-output {
   margin-left: 24px;
   color: #f8f8f2;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-wrap: break-word;
   opacity: 0.85;
   position: relative;
   font-size: 12px;
@@ -956,7 +957,8 @@ button {
 }
 
 .command-output div {
-  white-space: pre;
+  white-space: pre-wrap;
+  word-wrap: break-word;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
 }
 
@@ -1025,4 +1027,119 @@ button {
 .refresh-button svg {
   width: 12px;
   height: 12px;
+}
+
+/* Command block styling */
+.command-block {
+  margin: 8px 0;
+  width: 100%;
+}
+
+.command-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.simple-command {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  margin: 0;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  background-color: rgba(80, 250, 123, 0.03);
+  border: 1px solid rgba(80, 250, 123, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  width: fit-content;
+  min-width: 100px;
+  position: relative;
+  padding-right: 84px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.command-text {
+  color: #50fa7b;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-weight: 500;
+  margin-right: 4px;
+  overflow-x: auto;
+}
+
+.command-actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 2px 4px;
+  background-color: rgba(40, 42, 54, 0.8);
+  border-radius: 4px;
+  z-index: 1;
+}
+
+.command-explanation {
+  color: #6272a4;
+  font-size: 12px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(80, 250, 123, 0.2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .command-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .simple-command {
+    width: 100%;
+    padding-right: 92px;
+    font-size: 11px;
+    min-width: 80px;
+  }
+  
+  .command-text {
+    font-size: 11px;
+  }
+  
+  .command-explanation {
+    font-size: 11px;
+    margin-left: 4px;
+    padding-left: 8px;
+    width: 100%;
+  }
+}
+
+/* Improve command action buttons visibility */
+.command-action-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.command-action-button:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(80, 250, 123, 0.1);
+}
+
+.command-action-button svg {
+  width: 14px;
+  height: 14px;
 }

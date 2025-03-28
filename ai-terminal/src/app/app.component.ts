@@ -1089,29 +1089,35 @@ Available commands:
     this.showCopiedNotification();
   }
 
-  // Transform code before display to ensure no backticks or unwanted formatting
+  // Method to get command explanation from code block
+  getCommandExplanation(code: string): string | null {
+    if (!code) return null;
+    
+    // Split by colon to separate command from explanation
+    const parts = code.split(':');
+    
+    // If there's more than one part and the second part isn't empty
+    if (parts.length > 1 && parts[1].trim()) {
+      // Return everything after the first colon
+      return parts.slice(1).join(':').trim();
+    }
+    
+    return null;
+  }
+
+  // Update transformCodeForDisplay to handle explanations
   transformCodeForDisplay(code: string): string {
     if (!code) return '';
     
-    // First, check if the code still has backticks around it
-    let cleanCode = code.trim();
+    // Remove any backticks
+    let cleanCode = code.replace(/```/g, '').trim();
     
-    // Remove any backticks entirely from the code (at beginning, end, or middle)
-    cleanCode = cleanCode.replace(/```/g, '').trim();
-    
-    // Remove any language identifiers commonly found at the beginning of code blocks
-    if (cleanCode.startsWith('bash') || 
-        cleanCode.startsWith('shell') || 
-        cleanCode.startsWith('sh') || 
-        cleanCode.startsWith('command')) {
-      // Split by newline and remove the first line if it's just a language identifier
-      const lines = cleanCode.split('\n');
-      if (lines.length > 1 && lines[0].length < 20 && !lines[0].includes(' ')) {
-        cleanCode = lines.slice(1).join('\n').trim();
-      }
+    // If there's a colon, only show the command part
+    const colonIndex = cleanCode.indexOf(':');
+    if (colonIndex > -1) {
+      cleanCode = cleanCode.substring(0, colonIndex).trim();
     }
     
-    // For command responses, we want to preserve the entire command string
     return cleanCode;
   }
 
