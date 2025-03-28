@@ -471,6 +471,16 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       // Store command before clearing
       const commandToSend = this.currentCommand.trim();
       
+      // Handle cls/clear command locally
+      if (commandToSend === 'cls' || commandToSend === 'clear') {
+        // Clear the command history
+        this.commandHistory = [];
+        // Clear input
+        this.currentCommand = '';
+        this.isProcessing = false;
+        return;
+      }
+      
       // Add command to history with empty output array
       const commandEntry: CommandHistory = {
         command: commandToSend,
