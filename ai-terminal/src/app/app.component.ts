@@ -4,6 +4,7 @@ import { RouterOutlet } from '@angular/router';
 import { invoke } from "@tauri-apps/api/core";
 import { FormsModule } from '@angular/forms';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 interface CommandHistory {
   command: string;
@@ -69,6 +70,13 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   // New property for useProxy
   useProxy: boolean = false;
+
+  constructor(private sanitizer: DomSanitizer) {}
+
+  // Public method to sanitize HTML content
+  public sanitizeHtml(html: string): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(html);
+  }
 
   async ngOnInit() {
     // Load saved command history
@@ -164,7 +172,17 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   scrollToBottom() {
     try {
-      this.outputAreaRef.nativeElement.scrollTop = this.outputAreaRef.nativeElement.scrollHeight;
+      const outputArea = this.outputAreaRef.nativeElement;
+      // Force a reflow to ensure the content height is updated
+      void outputArea.offsetHeight;
+      // Scroll to the maximum possible position
+      outputArea.scrollTop = outputArea.scrollHeight;
+      
+      // Double-check the scroll position after a small delay
+      // This helps with dynamic content that might affect the scroll height
+      setTimeout(() => {
+        outputArea.scrollTop = outputArea.scrollHeight;
+      }, 50);
     } catch (err) {
       console.error('Error scrolling to bottom:', err);
     }
@@ -502,22 +520,90 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     }
   }
 
+  // Add a new method to parse commands from AI responses
+  parseCommandFromResponse(response: string): { command: string, fullText: string }[] {
+    const results: { command: string, fullText: string }[] = [];
+    let currentText = response;
+    let lastIndex = 0;
+
+    // First handle triple backtick blocks
+    const tripleCommandRegex = /```([^`]+)```/g;
+    let match;
+
+    while ((match = tripleCommandRegex.exec(response)) !== null) {
+      // Get the text before this command block
+      const textBefore = response.slice(lastIndex, match.index);
+      
+      // Process any single backticks in the text before
+      if (textBefore) {
+        const processedText = this.processSingleBackticks(textBefore);
+        if (processedText) {
+          results.push({
+            command: '',
+            fullText: processedText
+          });
+        }
+      }
+
+      // Add the command with its backticks
+      results.push({
+        command: match[1].trim(),
+        fullText: match[0] // Include the full match with backticks
+      });
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Process any remaining text for single backticks
+    const textAfter = response.slice(lastIndex);
+    if (textAfter) {
+      const processedText = this.processSingleBackticks(textAfter);
+      if (processedText) {
+        results.push({
+          command: '',
+          fullText: processedText
+        });
+      }
+    }
+
+    return results;
+  }
+
+  // Helper method to process single backticks into bold text
+  private processSingleBackticks(text: string): string {
+    // Replace single backticks with bold markers and sanitize
+    const processed = text.replace(/`([^`]+)`/g, '<b>$1</b>');
+    return processed;
+  }
+
   // Extract code blocks from response text
   extractCodeBlocks(text: string): { formattedText: string, codeBlocks: { code: string, language: string }[] } {
     const codeBlocks: { code: string, language: string }[] = [];
     
     // Special handling for command responses (single line enclosed in triple backticks)
-    const command = this.parseCommandFromResponse(text);
-    if (command) {
-      console.log("Found command:", command);
-      // Create a code block for the command
-      codeBlocks.push({
-        code: command,
-        language: 'command'
-      });
+    const commandParts = this.parseCommandFromResponse(text);
+    if (commandParts.length > 0) {
+      console.log("Found command parts:", commandParts);
       
-      // Return only the code block placeholder
-      return { formattedText: `<code-block-0></code-block-0>`, codeBlocks };
+      // Build the formatted text with placeholders and collect code blocks
+      const formattedParts = commandParts.map((part, index) => {
+        if (part.command) {
+          // This is a command block
+          codeBlocks.push({
+            code: part.command,
+            language: 'command'
+          });
+          return `<code-block-${codeBlocks.length - 1}></code-block-${codeBlocks.length - 1}>`;
+        } else {
+          // This is regular text
+          return part.fullText;
+        }
+      });
+
+      return { 
+        formattedText: formattedParts.join('\n'),
+        codeBlocks 
+      };
     }
     
     // First, check if the entire response is just a single code block with backticks
@@ -660,9 +746,9 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       
       // Create a system prompt that includes OS information and formatting instructions
       const systemPrompt = `You are a helpful terminal assistant. The user is using a ${os} operating system. 
-      When providing terminal commands, ensure they are compatible with ${os}. 
-      When asked for a command, respond with ONLY the command in this format: \`\`\`command\`\`\`
-      The command should be a single line without any explanation or additional text.`;
+      When providing terminal commands, ensure they are compatible with ${os} and provide a simple explanation of the command in a way that is easy to understand, not too much details. 
+      When asked for a command, respond with the command in this format: \`\`\`command\`\`\` and nothing else.
+      You can also provide multiple commands in a single response if the user asks for multiple commands, but all must be in the format \`\`\`command\`\`\` . remember to provide a simple explanation of the command in a way that is easy to understand, not too much details.`;
       
       // Combine the system prompt with the user's question
       const combinedPrompt = `${systemPrompt}\n\nUser: ${question}`;
@@ -760,9 +846,10 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
           response = await this.callOllamaDirectly(this.currentQuestion, this.currentLLMModel);
           
           // Check if the response contains a command we can execute
-          const command = this.parseCommandFromResponse(response);
-          if (command) {
-            console.log("Detected command in response:", command);
+          const commandParts = this.parseCommandFromResponse(response);
+          const hasCommands = commandParts.some(part => part.command);
+          if (hasCommands) {
+            console.log("Detected commands in response:", commandParts);
             // If this is a direct shell command question, we can enhance the UI by marking it as a command
             if (this.currentQuestion.toLowerCase().includes("command") || 
                 this.currentQuestion.toLowerCase().includes("how do i") ||
@@ -1049,6 +1136,9 @@ Available commands:
     if (!this.isProcessing) {
       this.requestAutocomplete();
     }
+
+    // Trigger scroll to bottom when typing
+    this.shouldScroll = true;
   }
 
   // Handle click on suggestion
@@ -1276,36 +1366,6 @@ Using: ${this.currentLLMModel}`,
       console.error('Error checking if model exists:', error);
       return false;
     }
-  }
-
-  // Add a new method to parse commands from AI responses
-  parseCommandFromResponse(response: string): string | null {
-    // First, check if the response is just plain text (no formatting)
-    if (!response.includes('```') && response.trim().length < 100 && !response.includes('\n')) {
-      // This might be a plain command without any formatting
-      return response.trim();
-    }
-
-    // Second, try to match the most common format with triple backticks
-    // This handles formats like: ```ls -l``` or ```command: ls -l``` or ```bash\nls -l```
-    const commandMatch = response.match(/```(?:command|bash|shell|sh)?[:\s]?\s*([^`\n]+)(?:\n|```)/);
-    
-    if (commandMatch && commandMatch[1]) {
-      // Return the command without surrounding backticks and whitespace
-      return commandMatch[1].trim();
-    }
-    
-    // Third approach: look for the entire response being just a command in backticks
-    if (response.trim().startsWith('```') && response.trim().endsWith('```')) {
-      const content = response.trim().slice(3, -3).trim();
-      // If the content doesn't have multiple lines and is reasonably short, treat as command
-      if (!content.includes('\n') && content.length < 100) {
-        return content;
-      }
-    }
-    
-    // If no command found in the expected format, return null
-    return null;
   }
 
   // Method to copy code to terminal input
