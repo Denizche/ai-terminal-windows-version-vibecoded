@@ -11,7 +11,7 @@
       </div>
       <div class="output-area" #outputArea>
         <div class="command-history">
-          <div *ngFor="let entry of commandHistory" class="command-entry">
+          <div *ngFor="let entry of commandHistory" class="command-entry" [attr.data-command-id]="entry.timestamp.getTime()">
             <div class="command-line">
               <span class="prompt">$</span>
               <span class="command" 
@@ -42,6 +42,13 @@
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
               </span>
+
+              <!-- Scroll to top button -->
+              <button class="scroll-to-top-button" data-tooltip="Scroll to top" (click)="scrollToTop(entry)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 15l-6-6-6 6"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>

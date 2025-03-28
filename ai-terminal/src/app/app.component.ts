@@ -1530,4 +1530,12 @@ Using: ${this.currentLLMModel}`,
       }, 1200);
     }, 10);
   }
+
+  // Method to scroll to top of a command output block
+  scrollToTop(entry: CommandHistory): void {
+    const element = document.querySelector(`[data-command-id="${entry.timestamp.getTime()}"]`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 }
