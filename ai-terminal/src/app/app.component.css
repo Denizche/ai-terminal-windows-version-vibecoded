@@ -722,27 +722,30 @@ button {
   position: relative;
   margin: 8px 0;
   border-radius: 6px;
-  background-color: #282a36;
-  border: 1px solid rgba(98, 114, 164, 0.3);
+  background-color: rgba(80, 250, 123, 0.1);
+  border: 1px solid rgba(80, 250, 123, 0.2);
   max-width: 100%;
   overflow: hidden;
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
 }
 
 .code-block {
   position: relative;
-  padding: 12px;
+  padding: 8px 12px;
   margin: 0;
-  background-color: #282a36;
-  color: #f8f8f2;
+  background-color: transparent;
+  color: #6272a4;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.5;
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
-  max-width: 100%;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 
 .code-block code {
@@ -778,57 +781,57 @@ button {
 
 /* Single line code blocks (no newlines) */
 .code-block-container.single-line {
-  background-color: #2b2d3a;
-  display: flex;
+  background-color: rgba(80, 250, 123, 0.1);
+  display: inline-flex;
   margin: 4px 0;
   align-items: center;
   border-radius: 4px;
-  border-color: rgba(139, 233, 253, 0.2);
+  border: 1px solid rgba(80, 250, 123, 0.2);
   width: fit-content;
   max-width: 100%;
+  padding: 4px 8px;
 }
 
 .code-block-container.single-line .code-block {
-  padding: 4px 12px;
+  padding: 0;
   max-height: none;
   display: flex;
   align-items: center;
   white-space: nowrap;
   overflow-x: auto;
   width: fit-content;
-  background-color: #2b2d3a;
+  background-color: transparent;
+  color: #6272a4;
 }
 
 .code-block-container.single-line .code-block-header {
-  border-bottom: none;
-  border-right: 1px solid rgba(80, 250, 123, 0.2);
-  padding: 4px 8px;
-  background-color: #2b2d3a;
+  border: none;
+  padding: 0 8px;
+  background-color: transparent;
 }
 
 .code-block-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
-  background-color: #282a36;
-  border-bottom: 1px solid rgba(80, 250, 123, 0.2);
+  padding: 4px 8px;
+  background: none;
+  border: none;
 }
 
 .code-language {
   font-size: 12px;
-  color: rgba(139, 233, 253, 0.8);
-  font-weight: bold;
+  color: #6272a4;
+  font-weight: normal;
   text-transform: uppercase;
 }
 
 .copy-code-button {
-  background: transparent;
+  background: none;
   border: none;
-  color: rgba(80, 250, 123, 0.8);
+  color: transparent;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -836,28 +839,104 @@ button {
 }
 
 .copy-code-button:hover {
-  background-color: rgba(80, 250, 123, 0.1);
-  color: rgba(80, 250, 123, 1);
+  color: transparent;
+  background: none;
 }
 
-/* Make the scrollbar in code blocks nicer */
-.code-block::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+.copy-code-button svg {
+  width: 14px;
+  height: 14px;
+  stroke: #6272a4;
+  stroke-width: 1.5;
+  fill: transparent;
 }
 
-.code-block::-webkit-scrollbar-track {
-  background: #1e1f2a;
+/* Code block actions container */
+.command-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.command-action-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.command-action-button:hover {
+  color: transparent;
+  background: none;
+}
+
+.command-action-button svg {
+  width: 14px;
+  height: 14px;
+  stroke: #6272a4;
+  stroke-width: 1.5;
+  fill: transparent;
+  transition: all 0.2s ease;
+}
+
+.command-action-button:hover svg {
+  stroke: #ffffff;
+  width: 18px;
+  height: 18px;
+}
+
+/* Add tooltip styles */
+.command-action-button::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background-color: #282a36;
+  color: #f8f8f2;
+  font-size: 12px;
   border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  border: 1px solid rgba(80, 250, 123, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
 }
 
-.code-block::-webkit-scrollbar-thumb {
-  background-color: rgba(80, 250, 123, 0.3);
-  border-radius: 4px;
+.command-action-button:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-8px);
 }
 
-.code-block::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(80, 250, 123, 0.5);
+/* Add a small arrow to the tooltip */
+.command-action-button::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: rgba(80, 250, 123, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.command-action-button:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-4px);
 }
 
 /* Copy notification styling */
@@ -901,13 +980,13 @@ button {
 
 /* Better styling for the inline single-line code blocks */
 .code-block-container.single-line {
-  background-color: #2b2d3a;
-  display: flex;
+  background-color: rgba(80, 250, 123, 0.1);
+  display: inline-flex;
   margin: 4px 0;
   max-width: 100%;
   align-items: center;
   border-radius: 4px;
-  border-color: rgba(139, 233, 253, 0.2);
+  border: 1px solid rgba(80, 250, 123, 0.2);
 }
 
 .command-history, .chat-history {
@@ -922,39 +1001,36 @@ button {
 
 /* Command action buttons styling */
 .command-actions {
-  display: inline-flex;
-  gap: 4px;
   position: absolute;
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
   padding: 2px 4px;
+  background: none;
+  z-index: 1;
 }
 
 .command-action-button {
   background: none;
   border: none;
-  padding: 2px;
-  color: rgba(255, 255, 255, 0.4); /* Transparent white */
+  padding: 4px;
+  color: transparent;
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .command-action-button:hover {
-  color: rgba(255, 255, 255, 0.8); /* More opaque white on hover */
+  color: transparent;
   background: none;
 }
 
-.command-action-button svg {
-  width: 14px;
-  height: 14px;
-}
-
 .command-text {
-  color: #50fa7b;
+  color: transparent;
   cursor: pointer;
   white-space: nowrap;
   font-weight: 500;
@@ -966,10 +1042,17 @@ button {
 .code-block-actions {
   display: flex;
   align-items: center;
+  gap: 4px;
+  background: none;
 }
 
 .code-block-actions .copy-code-button {
-  margin-left: 4px;
+  margin-left: 0;
+  opacity: 1;
+}
+
+.code-block-actions .copy-code-button:hover {
+  opacity: 1;
 }
 
 /* Simple command styling */
@@ -980,7 +1063,7 @@ button {
   padding: 4px 8px;
   margin: 4px 0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  background-color: rgba(80, 250, 123, 0.03); /* More transparent background */
+  background-color: rgba(35, 214, 81, 0.08); /* More transparent background */
   border: 1px solid rgba(80, 250, 123, 0.1);
   border-radius: 6px;
   transition: all 0.2s ease;
@@ -989,12 +1072,6 @@ button {
   margin-right: 8px;
   flex-shrink: 0;
   padding-right: 84px; /* Space for icons */
-}
-
-.simple-command:hover {
-  background-color: rgba(80, 250, 123, 0.08);
-  border-color: rgba(80, 250, 123, 0.15);
-  box-shadow: 0 2px 8px rgba(80, 250, 123, 0.05);
 }
 
 .command-output {
@@ -1127,7 +1204,7 @@ button {
   margin: 0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   background-color: rgba(80, 250, 123, 0.03);
-  border: 1px solid rgba(80, 250, 123, 0.1);
+  border: 1px solid rgba(80, 250, 123, 0.2);
   border-radius: 6px;
   transition: all 0.2s ease;
   width: fit-content;
@@ -1155,7 +1232,7 @@ button {
   display: flex;
   gap: 4px;
   padding: 2px 4px;
-  background-color: rgba(40, 42, 54, 0.8);
+  background-color: rgba(35, 214, 81, 0.00);
   border-radius: 4px;
   z-index: 1;
 }
@@ -1203,21 +1280,37 @@ button {
   background: none;
   border: none;
   padding: 4px;
-  color: rgba(255, 255, 255, 0.4);
+  color: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
 }
 
 .command-action-button:hover {
-  color: rgba(255, 255, 255, 0.9);
-  background-color: rgba(80, 250, 123, 0.1);
+  color: transparent;
+  background: none;
 }
 
 .command-action-button svg {
   width: 14px;
   height: 14px;
+  stroke: #6272a4;
+  stroke-width: 1.5;
+  fill: transparent;
+  transition: all 0.2s ease;
+}
+
+.command-action-button:hover svg {
+  stroke: #ffffff;
+  width: 18px;
+  height: 18px;
+}
+
+.code-block-container.single-line .code-block-header {
+  border-bottom: none;
+  border-right: none;
+  padding: 2px 4px;
+  background-color: #282a36;
 }
