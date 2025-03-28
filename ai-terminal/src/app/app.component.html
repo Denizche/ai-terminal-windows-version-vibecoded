@@ -11,11 +11,11 @@
       </div>
       <div class="output-area" #outputArea>
         <div class="command-history">
-          <div *ngFor="let entry of commandHistory" class="command-entry" [attr.data-command-id]="entry.timestamp.getTime()">
+          <div *ngFor="let entry of commandHistory" class="command-entry"
+            [attr.data-command-id]="entry.timestamp.getTime()">
             <div class="command-line">
               <span class="prompt">$</span>
-              <span class="command" 
-                [ngClass]="{
+              <span class="command" [ngClass]="{
                   'command-success': entry.isComplete && entry.success === true,
                   'command-error': entry.isComplete && entry.success === false,
                   'command-running': !entry.isComplete
@@ -29,15 +29,21 @@
                 <span *ngIf="entry.isStreaming">⟳ streaming...</span>
                 <span *ngIf="!entry.isStreaming">⧗ processing...</span>
               </div>
-              
+
               <!-- Output content - show always -->
               <ng-container *ngFor="let line of entry.output">
-                <div *ngIf="!line.includes('Command completed successfully') && !line.includes('Command failed.')">{{ line }}</div>
+                <div *ngIf="!line.includes('Command completed successfully') && 
+                           !line.includes('Command failed.') && 
+                           !line.includes('Command started. Output will stream')">
+                  {{ line }}
+                </div>
               </ng-container>
-              
+
               <!-- Copy icon - only show for completed commands with output -->
-              <span class="copy-icon" (click)="copyToClipboard(getFilteredOutput(entry.output))" *ngIf="entry.isComplete && entry.output.length > 0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <span class="copy-icon" (click)="copyToClipboard(getFilteredOutput(entry.output))"
+                *ngIf="entry.isComplete && entry.output.length > 0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
@@ -45,8 +51,9 @@
 
               <!-- Scroll to top button -->
               <button class="scroll-to-top-button" data-tooltip="Scroll to top" (click)="scrollToTop(entry)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 15l-6-6-6 6"/>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 15l-6-6-6 6" />
                 </svg>
               </button>
             </div>
@@ -59,17 +66,13 @@
       </div>
       <div class="input-area">
         <!-- Autocomplete suggestions - moved above input -->
-        <div class="autocomplete-container" 
-             *ngIf="showSuggestions && autocompleteSuggestions.length > 0" 
-             tabindex="0"
-             (keydown.arrowDown)="navigateToSuggestion('down'); $event.preventDefault()"
-             (keydown.arrowUp)="navigateToSuggestion('up'); $event.preventDefault()"
-             (keydown.enter)="applySuggestion(autocompleteSuggestions[selectedSuggestionIndex]); focusTerminalInput(); $event.preventDefault()"
-             (keydown.escape)="showSuggestions = false; focusTerminalInput(); $event.preventDefault()">
+        <div class="autocomplete-container" *ngIf="showSuggestions && autocompleteSuggestions.length > 0" tabindex="0"
+          (keydown.arrowDown)="navigateToSuggestion('down'); $event.preventDefault()"
+          (keydown.arrowUp)="navigateToSuggestion('up'); $event.preventDefault()"
+          (keydown.enter)="applySuggestion(autocompleteSuggestions[selectedSuggestionIndex]); focusTerminalInput(); $event.preventDefault()"
+          (keydown.escape)="showSuggestions = false; focusTerminalInput(); $event.preventDefault()">
           <div class="autocomplete-list">
-            <div 
-              *ngFor="let suggestion of autocompleteSuggestions; let i = index" 
-              class="autocomplete-item"
+            <div *ngFor="let suggestion of autocompleteSuggestions; let i = index" class="autocomplete-item"
               [class.selected]="i === selectedSuggestionIndex"
               (click)="applySuggestion(suggestion); focusTerminalInput(); showSuggestions = false; $event.preventDefault(); $event.stopPropagation();">
               {{ suggestion }}
@@ -78,26 +81,17 @@
         </div>
         <div class="prompt-container">
           <span class="prompt">$</span>
-          <textarea 
-            [(ngModel)]="currentCommand"
-            (ngModelChange)="onKeyInput($event)"
-            (keydown)="executeCommand($event)"
-            (input)="onKeyInput($event)"
-            (keyup)="onKeyInput($event)"
-            [disabled]="isProcessing"
-            placeholder="Enter command..."
-            autofocus></textarea>
+          <textarea [(ngModel)]="currentCommand" (ngModelChange)="onKeyInput($event)" (keydown)="executeCommand($event)"
+            (input)="onKeyInput($event)" (keyup)="onKeyInput($event)" [disabled]="isProcessing"
+            [class.password-input]="isSudoPasswordPrompt" placeholder="Enter command..." autofocus></textarea>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Resizer - Only show when AI panel is visible -->
-  <div class="resizer" 
-       (mousedown)="startResize($event)"
-       (touchstart)="startResize($event)"
-       [class.resizing]="isResizing"
-       *ngIf="isAIPanelVisible">
+  <div class="resizer" (mousedown)="startResize($event)" (touchstart)="startResize($event)"
+    [class.resizing]="isResizing" *ngIf="isAIPanelVisible">
   </div>
 
   <!-- Right Panel - AI Chat - Only show when isAIPanelVisible is true -->
@@ -117,8 +111,10 @@
             <div class="chat-question">
               <span class="prompt">></span>
               <span class="message">{{ entry.message }}</span>
-              <button class="refresh-button" title="Ask this question again" (click)="copyQuestionToInput(entry.message)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <button class="refresh-button" title="Ask this question again"
+                (click)="copyQuestionToInput(entry.message)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
                   <path d="M23 4v6h-6"></path>
                   <path d="M1 20v-6h6"></path>
                   <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
@@ -139,40 +135,49 @@
                             {{ transformCodeForDisplay(entry.codeBlocks[getCodeBlockIndex(segment)].code) }}
                           </span>
                           <span class="command-actions">
-                            <button class="command-action-button" data-tooltip="Copy" (click)="copyCodeBlock(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <button class="command-action-button" data-tooltip="Copy"
+                              (click)="copyCodeBlock(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                               </svg>
                             </button>
-                            <button class="command-action-button" data-tooltip="Copy to terminal" (click)="sendCodeToTerminal(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <button class="command-action-button" data-tooltip="Copy to terminal"
+                              (click)="sendCodeToTerminal(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="9 10 4 15 9 20"></polyline>
                                 <path d="M20 4v7a4 4 0 0 1-4 4H4"></path>
                               </svg>
                             </button>
-                            <button class="command-action-button" data-tooltip="Execute" (click)="executeCodeDirectly(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <button class="command-action-button" data-tooltip="Execute"
+                              (click)="executeCodeDirectly(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polygon points="5 3 19 12 5 21 5 3"></polygon>
                               </svg>
                             </button>
                           </span>
                         </span>
-                        <span class="command-explanation" *ngIf="getCommandExplanation(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
+                        <span class="command-explanation"
+                          *ngIf="getCommandExplanation(entry.codeBlocks[getCodeBlockIndex(segment)].code)">
                           {{ getCommandExplanation(entry.codeBlocks[getCodeBlockIndex(segment)].code) }}
                         </span>
                       </div>
                     </div>
                   </ng-container>
                 </ng-container>
-                
+
                 <!-- Regular text lines -->
                 <div *ngIf="!isCodeBlockPlaceholder(segment)" [innerHTML]="sanitizeHtml(segment)"></div>
               </ng-container>
 
               <!-- Copy icon for AI response -->
-              <span class="copy-icon" (click)="copyFullResponse(entry)" *ngIf="entry.response && entry.response !== 'Thinking...'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <span class="copy-icon" (click)="copyFullResponse(entry)"
+                *ngIf="entry.response && entry.response !== 'Thinking...'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
@@ -184,13 +189,8 @@
       <div class="input-area">
         <div class="prompt-container">
           <span class="prompt">></span>
-          <textarea 
-            [(ngModel)]="currentQuestion"
-            (keydown)="askAI($event)"
-            (input)="autoResize($event)"
-            [disabled]="isProcessingAI"
-            placeholder="Ask AI or type /help, /models, /model..."
-            autofocus></textarea>
+          <textarea [(ngModel)]="currentQuestion" (keydown)="askAI($event)" (input)="autoResize($event)"
+            [disabled]="isProcessingAI" placeholder="Ask AI or type /help, /models, /model..." autofocus></textarea>
         </div>
       </div>
     </div>

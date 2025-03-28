@@ -4,7 +4,7 @@
 use std::process::{Command, Stdio, Child};
 use std::sync::{Mutex, Arc};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::thread;
 use tauri::{command, State, AppHandle, Emitter};
 use std::env;
@@ -172,6 +172,7 @@ fn execute_command(
                           command.starts_with("node") ||
                           command.starts_with("python") ||
                           command.starts_with("java") ||
+                          command.starts_with("sudo") ||
                           command.contains("watch") ||
                           command.contains("--progress") ||
                           command.contains("-v") ||
@@ -208,10 +209,17 @@ fn execute_command(
     let mut child = match Command::new("sh")
         .arg("-c")
         // On macOS, prefix the command with exec to ensure signals propagate correctly
-        .arg(format!("exec {}", &command_clone))
+        // For sudo commands, we need to make sure terminal output is properly redirected
+        .arg(if command_clone.contains("sudo") {
+            // For sudo commands, make sure to capture all output
+            format!("{}", &command_clone)
+        } else {
+            format!("exec {}", &command_clone)
+        })
         .current_dir(&current_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .stdin(Stdio::piped()) // Ensure stdin is piped for password input
         .spawn() {
             Ok(child) => child,
             Err(e) => {
@@ -227,7 +235,7 @@ fn execute_command(
     if let Some(stdout) = child_arc.lock().unwrap().stdout.take() {
         let app_handle_stdout = app_handle_clone.clone();
         thread::spawn(move || {
-            let reader = BufReader::new(stdout);
+            let mut reader = BufReader::with_capacity(1024, stdout);
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
@@ -238,6 +246,9 @@ fn execute_command(
                         break;
                     }
                 }
+                
+                // Sleep a tiny amount to allow OS to process more output
+                thread::sleep(std::time::Duration::from_millis(1));
             }
         });
     }
@@ -246,17 +257,23 @@ fn execute_command(
     if let Some(stderr) = child_arc.lock().unwrap().stderr.take() {
         let app_handle_stderr = app_handle_clone.clone();
         thread::spawn(move || {
-            let reader = BufReader::new(stderr);
+            let mut reader = BufReader::with_capacity(1024, stderr);
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
-                        let _ = app_handle_stderr.emit("command_error", line);
+                        // Filter out password prompt
+                        if !line.contains("[sudo] password") {
+                            let _ = app_handle_stderr.emit("command_error", line);
+                        }
                     }
                     Err(e) => {
                         let _ = app_handle_stderr.emit("command_error", format!("Error reading stderr: {}", e));
                         break;
                     }
                 }
+                
+                // Sleep a tiny amount to allow OS to process more output
+                thread::sleep(std::time::Duration::from_millis(1));
             }
         });
     }
@@ -285,6 +302,124 @@ fn execute_command(
     });
     
     Ok("Command started. Output will stream in real-time.".to_string())
+}
+
+#[command]
+fn execute_sudo_command(
+    command: String,
+    password: String, 
+    app_handle: AppHandle,
+    command_manager: State<'_, CommandManager>
+) -> Result<String, String> {
+    let mut states = command_manager.commands.lock().map_err(|e| e.to_string())?;
+    
+    let key = "default_state".to_string();
+    let state = states.entry(key.clone()).or_insert_with(|| CommandState {
+        current_dir: std::env::current_dir().unwrap_or_default().to_string_lossy().to_string(),
+        current_process: None,
+    });
+    
+    let current_dir = state.current_dir.clone();
+    
+    let mut child = match Command::new("sudo")
+        .arg("-S")  
+        .arg("bash") 
+        .arg("-c")  
+        .arg(command.split_whitespace().skip(1).collect::<Vec<&str>>().join(" ")) // Skip "sudo" and join the rest
+        .current_dir(&current_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn() {
+            Ok(child) => child,
+            Err(e) => {
+                return Err(format!("Failed to start sudo command: {}", e));
+            }
+        };
+    
+    let child_arc = Arc::new(Mutex::new(child));
+    state.current_process = Some(child_arc.clone());
+    
+    // Send password to stdin
+    if let Some(mut stdin) = child_arc.lock().unwrap().stdin.take() {
+        let app_handle_stdin = app_handle.clone();
+        thread::spawn(move || {
+            if let Err(_) = stdin.write_all(format!("{}\n", password).as_bytes()) {
+                let _ = app_handle_stdin.emit("command_error", "Failed to send password to sudo");
+                return;
+            }
+            
+            if let Err(_) = stdin.flush() {
+                let _ = app_handle_stdin.emit("command_error", "Failed to flush password to sudo");
+            }
+        });
+    }
+    
+    if let Some(stdout) = child_arc.lock().unwrap().stdout.take() {
+        let app_handle_stdout = app_handle.clone();
+        thread::spawn(move || {
+            let mut reader = BufReader::with_capacity(1024, stdout);
+            for line in reader.lines() {
+                match line {
+                    Ok(line) => {
+                        let _ = app_handle_stdout.emit("command_output", line);
+                    }
+                    Err(e) => {
+                        let _ = app_handle_stdout.emit("command_output", format!("Error reading output: {}", e));
+                        break;
+                    }
+                }
+                
+                thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+    }
+    
+    if let Some(stderr) = child_arc.lock().unwrap().stderr.take() {
+        let app_handle_stderr = app_handle.clone();
+        thread::spawn(move || {
+            let mut reader = BufReader::with_capacity(1024, stderr);
+            for line in reader.lines() {
+                match line {
+                    Ok(line) => {
+                        if !line.contains("[sudo] password") {
+                            let _ = app_handle_stderr.emit("command_error", line);
+                        }
+                    }
+                    Err(e) => {
+                        let _ = app_handle_stderr.emit("command_error", format!("Error reading stderr: {}", e));
+                        break;
+                    }
+                }
+                
+                thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+    }
+    
+    let child_arc_clone = child_arc.clone();
+    let app_handle_wait = app_handle.clone();
+    thread::spawn(move || {
+        let status = {
+            let mut child_guard = child_arc_clone.lock().unwrap();
+            match child_guard.wait() {
+                Ok(status) => status,
+                Err(e) => {
+                    let _ = app_handle_wait.emit("command_error", format!("Error waiting for command: {}", e));
+                    return;
+                }
+            }
+        };
+        
+        let exit_msg = if status.success() { 
+            "Command completed successfully." 
+        } else { 
+            "Command failed." 
+        };
+        let _ = app_handle_wait.emit("command_end", exit_msg);
+    });
+    
+    Ok("Sudo command started. Output will stream in real-time.".to_string())
 }
 
 #[command]
@@ -805,6 +940,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             execute_command,
+            execute_sudo_command,
             terminate_command,
             autocomplete,
             get_working_directory,
