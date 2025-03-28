@@ -299,6 +299,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   // Handle key presses globally
   @HostListener('document:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
+    // Temporarily disabled Ctrl+C functionality
+    /*
     // Handle Ctrl+C to terminate running command
     if (event.ctrlKey && event.key === 'c' && this.isProcessing) {
       event.preventDefault();
@@ -306,6 +308,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       this.terminateCommand();
       return;
     }
+    */
   }
 
   startResize(event: MouseEvent | TouchEvent) {
@@ -338,30 +341,20 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     currentCommand.success = false;
     this.shouldScroll = true;
 
-    // Force immediate UI update
-    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    // Force immediate UI update and focus the input
+    this.focusTerminalInput();
+    
+    // Fire and forget - don't await the backend response
+    // This ensures the UI stays responsive regardless of how long the backend takes
+    invoke<string>("terminate_command")
+      .then(result => {
+        console.log('Command terminated:', result);
+      })
+      .catch(error => {
+        console.error('Failed to terminate command:', error);
+      });
 
-    try {
-      // Call the backend to terminate the command
-      const result = await Promise.race([
-        invoke<string>("terminate_command"),
-        // Use a longer timeout for macOS since process termination can take longer
-        new Promise<string>(resolve =>
-          setTimeout(() => resolve("Termination timed out, but UI is responsive"), 2000)
-        )
-      ]);
-
-      currentCommand.output.push(`\n${result}`);
-    } catch (error) {
-      console.error('Failed to terminate command:', error);
-      currentCommand.output.push("\nError terminating command, but UI is responsive");
-    } finally {
-      // Ensure UI state is consistent
-      this.isProcessing = false;
-      currentCommand.isComplete = true;
-      currentCommand.isStreaming = false;
-      this.shouldScroll = true;
-    }
   }
 
   async requestAutocomplete(): Promise<void> {
@@ -1400,6 +1393,11 @@ Available commands:
       // Set the current command to the historical command
       this.currentCommand = this.commandHistory[this.commandHistoryIndex].command;
     } else if (direction === 'down') {
+      // If already at the end of history, do nothing
+      if (this.commandHistoryIndex === -1) {
+        return;
+      }
+      
       // Move down in history
       this.commandHistoryIndex++;
 
