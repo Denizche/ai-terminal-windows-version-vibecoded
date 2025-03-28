@@ -758,6 +758,40 @@ fn set_host(host: String, command_manager: State<'_, CommandManager>) -> Result<
     Ok(format!("Changed Ollama API host to: {}", host))
 }
 
+#[command]
+fn get_git_branch(command_manager: State<'_, CommandManager>) -> Result<String, String> {
+    let states = command_manager.commands.lock().map_err(|e| e.to_string())?;
+    let key = "default_state".to_string();
+    
+    let current_dir = if let Some(state) = states.get(&key) {
+        &state.current_dir
+    } else {
+        return Ok("".to_string());
+    };
+
+    // Check if .git directory exists
+    let git_dir = Path::new(current_dir).join(".git");
+    if !git_dir.exists() {
+        return Ok("".to_string());
+    }
+
+    // Get current branch
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg("--abbrev-ref")
+        .arg("HEAD")
+        .current_dir(current_dir)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(branch)
+    } else {
+        Ok("".to_string())
+    }
+}
+
 fn main() {
     // Create a new command manager
     let command_manager = CommandManager::new();
@@ -779,7 +813,8 @@ fn main() {
             get_models,
             switch_model,
             get_host,
-            set_host
+            set_host,
+            get_git_branch
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

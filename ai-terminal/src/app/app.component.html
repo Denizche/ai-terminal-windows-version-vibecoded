@@ -46,7 +46,10 @@
           </div>
         </div>
       </div>
-      <div class="current-directory">{{ currentWorkingDirectory }}</div>
+      <div class="current-directory">
+        {{ currentWorkingDirectory }}
+        <span class="git-branch" *ngIf="gitBranch">git({{ gitBranch }})</span>
+      </div>
       <div class="input-area">
         <!-- Autocomplete suggestions - moved above input -->
         <div class="autocomplete-container" 

@@ -233,13 +233,23 @@ button {
 .current-directory {
   font-weight: bold;
   padding: 4px 16px;
-  width: 100%;
+  width: calc(100% - 16px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   background-color: #282a36;
   font-size: 12px;
   margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.git-branch {
+  color: #ffc107;
+  font-weight: normal;
+  margin-left: auto;
 }
 
 .prompt-container {

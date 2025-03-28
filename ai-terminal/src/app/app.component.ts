@@ -37,6 +37,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   isProcessing: boolean = false;
   currentWorkingDirectory: string = '~';
   commandHistoryIndex: number = -1; // Current position in command history navigation
+  gitBranch: string = ''; // Add Git branch property
   
   // Autocomplete properties
   autocompleteSuggestions: string[] = [];
@@ -192,12 +193,14 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     try {
       // Use parallel requests to get both values if we don't have homePath yet
       if (!this.homePath) {
-        const [result, homePath] = await Promise.all([
+        const [result, homePath, gitBranch] = await Promise.all([
           invoke<string>("get_working_directory"),
-          invoke<string>("get_home_directory")
+          invoke<string>("get_home_directory"),
+          invoke<string>("get_git_branch")
         ]);
         
         this.homePath = homePath;
+        this.gitBranch = gitBranch;
         
         // Replace home directory path with ~
         if (result.startsWith(homePath)) {
@@ -206,8 +209,13 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
           this.currentWorkingDirectory = result.trim();
         }
       } else {
-        // If we already have the home path, just get the current directory
-        const result = await invoke<string>("get_working_directory");
+        // If we already have the home path, just get the current directory and Git branch
+        const [result, gitBranch] = await Promise.all([
+          invoke<string>("get_working_directory"),
+          invoke<string>("get_git_branch")
+        ]);
+        
+        this.gitBranch = gitBranch;
         
         // Replace home directory path with ~
         if (result.startsWith(this.homePath)) {
