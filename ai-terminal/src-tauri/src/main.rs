@@ -170,7 +170,7 @@ fn execute_command(
     if !is_long_running {
         let output = Command::new("sh")
             .arg("-c")
-            .arg(&command)
+            .arg(&command.replace('"', "'"))
             .current_dir(&state.current_dir)
             .output()
             .map_err(|e| e.to_string())?;
