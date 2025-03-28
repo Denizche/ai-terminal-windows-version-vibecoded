@@ -553,14 +553,14 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
       lastIndex = match.index + match[0].length;
 
-      // Check if there's a newline character (↵) after this command
-      const nextChar = response[lastIndex];
-      if (nextChar === '↵') {
+      // Check if there's an escaped newline (\\n) after this command
+      const nextChars = response.slice(lastIndex, lastIndex + 4);
+      if (nextChars === '\\n') {
         results.push({
           command: '',
           fullText: '\n'
         });
-        lastIndex++;
+        lastIndex += 4; // Skip the \\n
       }
     }
 
@@ -763,10 +763,9 @@ CRITICAL FORMAT RULES:
 1. Each command block must be on ONE LINE ONLY - NO NEWLINES INSIDE COMMAND BLOCKS
 2. Each command must be followed by a colon and a space, then the explanation
 3. Use exactly three backticks to wrap each command
-4. Put each command-explanation pair on its own line
+4. Put each command-explanation pair on its own line using \\n
 5. NEVER include language identifiers (like 'bash')
 6. NEVER include newlines or line breaks inside the command blocks
-
 
 Examples of INCORRECT format:
 ❌ \`\`\`ls
@@ -781,16 +780,15 @@ Your response must look EXACTLY like the correct format above, with:
 - No newlines within command blocks
 - A colon and space after each command block
 - A brief explanation after the colon
+- Use the html new line character to separate each command-explanation pair, do not use any other newline method
 
 Example of CORRECT format:
-\`\`\`ls\`\`\` : Lists files in current directory
-\`\`\`pwd && ls\`\`\` : Shows current directory path and lists files
-\`\`\`cd Documents\`\`\` : Changes to Documents directory
+\`\`\`ls\`\`\` : Lists files in current directory \`\`\`pwd && ls\`\`\` : Shows current directory path and lists files\`\`\`cd Documents\`\`\` : Changes to Documents directory
 
 IMPORTANT RULES:
 1. NEVER use 'bash' or any other language identifier
 2. NEVER include backticks within the command itself
-3. ALWAYS put each command on a new line
+3. ALWAYS put each command on a new line using the html new line character
 4. ALWAYS use exactly three backticks (\`\`\`) around each command
 5. ALWAYS follow each command with : and a brief explanation`;
 
