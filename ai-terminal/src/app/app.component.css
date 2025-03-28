@@ -425,22 +425,22 @@ button {
 
 .copy-icon {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
-  opacity: 0;
-  transition: all 0.2s ease;
+  top: 4px;
+  right: 4px;
   cursor: pointer;
-  color: #6272a4;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
   padding: 4px;
   border-radius: 4px;
+  background-color: rgba(40, 42, 54, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .copy-icon:hover {
-  color: #8be9fd;
-  background-color: rgba(68, 71, 90, 0.3);
+  opacity: 1;
+  background-color: rgba(80, 250, 123, 0.1);
 }
 
 .copy-icon svg {
@@ -988,21 +988,46 @@ button {
 }
 
 .command-output {
-  margin-left: 24px;
-  color: #f8f8f2;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  opacity: 0.85;
   position: relative;
-  font-size: 12px;
-  line-height: 1.5;
-  user-select: text;
+  padding: 8px;
+  margin: 4px 0;
+  border-radius: 4px;
+  background-color: rgba(40, 42, 54, 0.3);
 }
 
 .command-output div {
   white-space: pre-wrap;
   word-wrap: break-word;
+  word-break: break-word;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  line-height: 1.4;
+  user-select: text;
+  display: inline-block;
+  margin-right: 12px;
+}
+
+/* Add specific styling for ls command output */
+.command-output div:not(.processing-indicator) {
+  display: inline-block;
+  vertical-align: top;
+  margin: 2px 12px 2px 0;
+  padding: 0 4px;
+}
+
+.ai-message {
+  position: relative;
+  padding: 8px;
+  margin: 4px 0;
+  border-radius: 4px;
+  background-color: rgba(40, 42, 54, 0.3);
+}
+
+.ai-message .copy-icon {
+  background-color: rgba(189, 147, 249, 0.1);
+}
+
+.ai-message .copy-icon:hover {
+  background-color: rgba(189, 147, 249, 0.2);
 }
 
 .command-line {
