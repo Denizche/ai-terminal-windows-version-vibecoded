@@ -748,6 +748,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       const systemPrompt = `You are a helpful terminal assistant. The user is using a ${os} operating system. 
       When providing terminal commands, ensure they are compatible with ${os} and provide a simple explanation of the command in a way that is easy to understand, not too much details. 
       When asked for a command, respond with the command in this format: \`\`\`command\`\`\` and nothing else. I want at least a command in the response with the format \`\`\`command\`\`\` .
+      If the user asks for more commands, or you have multiple commands to provide, respond with a list of commands in the format \`\`\`command1\`\`\` \`\`\`command2\`\`\` \`\`\`command3\`\`\` etc.
       You can also provide multiple commands in a single response if the user asks for multiple commands, but all must be in the format \`\`\`command\`\`\` . remember to provide a simple explanation of the command in a way that is easy to understand, not too much details.`;
       
       // Combine the system prompt with the user's question

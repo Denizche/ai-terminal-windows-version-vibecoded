@@ -408,7 +408,7 @@ button {
   font-size: 12px;
   white-space: pre-wrap;
   word-wrap: break-word;
-  margin-left: 24px;
+  margin-left: 8px;
   position: relative;
   padding-top: 8px;
 }
@@ -851,7 +851,10 @@ button {
   gap: 4px;
   opacity: 0;
   transition: opacity 0.2s ease;
-  margin-left: 8px;
+  position: absolute;
+  right: -84px; /* Adjust based on the total width of your icons */
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .simple-command:hover .command-actions {
@@ -862,13 +865,22 @@ button {
   background: none;
   border: none;
   padding: 2px;
-  color: #6272a4;
+  color: rgba(80, 250, 123, 0.4);
   cursor: pointer;
   transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .command-action-button:hover {
   color: #50fa7b;
+  background: none;
+}
+
+.command-action-button svg {
+  width: 14px;
+  height: 14px;
 }
 
 .command-text {
@@ -890,23 +902,28 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 0;
-  margin: 2px 0;
+  padding: 4px 8px;
+  margin: 4px 0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  background-color: rgba(80, 250, 123, 0.05);
+  border: 1px solid rgba(80, 250, 123, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  width: fit-content;
+  position: relative;
 }
 
 .simple-command:hover {
-  background-color: #383a4a;
-  border-color: rgba(80, 250, 123, 0.4);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background-color: rgba(80, 250, 123, 0.08);
+  border-color: rgba(80, 250, 123, 0.15);
+  box-shadow: 0 2px 8px rgba(80, 250, 123, 0.05);
 }
 
 .command-text {
+  color: #50fa7b;
   cursor: pointer;
-  flex: 1;
   white-space: nowrap;
-  overflow-x: visible;
-  padding-right: 4px;
+  font-weight: 500;
 }
 
 .command-output {
@@ -960,6 +977,7 @@ button {
   padding-bottom: 8px;
   margin-bottom: 8px;
   color: rgba(189, 147, 249, 0.85);
+  margin-left: 8px;
 }
 
 .chat-question .prompt {
