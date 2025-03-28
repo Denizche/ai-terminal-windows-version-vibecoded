@@ -387,6 +387,13 @@ button {
   transition: all 0.2s ease;
 }
 
+.command-entry:hover {
+  transform: scale(1.01);
+  border-color: rgba(80, 250, 123, 0.4);
+  box-shadow: 0 4px 12px rgba(80, 250, 123, 0.15);
+  opacity: 1;
+}
+
 .chat-entry {
   margin-bottom: 20px;
   padding: 8px;
@@ -394,6 +401,13 @@ button {
   border-radius: 8px;
   opacity: 0.9;
   transition: all 0.2s ease;
+}
+
+.chat-entry:hover {
+  transform: scale(1.01);
+  border-color: rgba(189, 147, 249, 0.4);
+  box-shadow: 0 4px 12px rgba(189, 147, 249, 0.15);
+  opacity: 1;
 }
 
 .chat-line {
@@ -430,6 +444,17 @@ button {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.chat-output:hover {
+  transform: none;
+  border: 1px solid transparent;
+  box-shadow: none;
+  z-index: auto;
 }
 
 .chat-output>div {
@@ -461,8 +486,8 @@ button {
 .copy-icon:hover {
   opacity: 1;
   background-color: rgba(98, 114, 164, 0.1);
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 4px 8px rgba(98, 114, 164, 0.2);
+  transform: none;
+  box-shadow: none;
   border-color: rgba(98, 114, 164, 0.8);
 }
 
@@ -506,7 +531,7 @@ button {
 .copy-icon:hover::after {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-8px);
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Add a small arrow to the tooltip */
@@ -526,7 +551,7 @@ button {
 .copy-icon:hover::before {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-4px);
+  transform: translateX(-50%) translateY(0);
 }
 
 .command-output:hover .copy-icon,
@@ -761,7 +786,7 @@ button {
   background-color: rgba(189, 147, 249, 0.15);
   border-color: rgba(189, 147, 249, 0.5);
   box-shadow: 0 4px 12px rgba(189, 147, 249, 0.2);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .toggle-ai-button:hover::before {
@@ -821,6 +846,13 @@ button {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
+  transition: all 0.2s ease;
+}
+
+.code-block-container:hover {
+  transform: none;
+  border-color: rgba(80, 250, 123, 0.2);
+  box-shadow: none;
 }
 
 .code-block {
@@ -838,6 +870,15 @@ button {
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.code-block:hover {
+  transform: none;
+  border: 1px solid transparent;
+  box-shadow: none;
+  z-index: auto;
 }
 
 .code-block code {
@@ -1008,7 +1049,7 @@ button {
 .command-action-button:hover::after {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-8px);
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Add a small arrow to the tooltip */
@@ -1028,7 +1069,7 @@ button {
 .command-action-button:hover::before {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-4px);
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Copy notification styling */
@@ -1153,9 +1194,8 @@ button {
 .simple-command {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  margin: 4px 0;
+  padding: 6px 12px;
+  margin: 0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   background-color: rgba(35, 214, 81, 0.08);
   /* More transparent background */
@@ -1163,8 +1203,10 @@ button {
   border-radius: 6px;
   transition: all 0.2s ease;
   width: fit-content;
+  min-width: 100px;
   position: relative;
-  margin-right: 8px;
+  padding-right: 84px;
+  box-sizing: border-box;
   flex-shrink: 0;
   padding-right: 84px;
   /* Space for icons */
@@ -1205,6 +1247,15 @@ button {
   margin: 4px 0;
   border-radius: 4px;
   background-color: rgba(40, 42, 54, 0.3);
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.ai-message:hover {
+  transform: none;
+  border: 1px solid transparent;
+  box-shadow: none;
+  z-index: auto;
 }
 
 .ai-message .copy-icon {
@@ -1275,6 +1326,7 @@ button {
 .refresh-button:hover {
   color: rgba(189, 147, 249, 1);
   background-color: rgba(189, 147, 249, 0.1);
+  transform: none;
 }
 
 .refresh-button svg {
@@ -1293,24 +1345,6 @@ button {
   align-items: center;
   gap: 12px;
   width: 100%;
-}
-
-.simple-command {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  margin: 0;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  background-color: rgba(80, 250, 123, 0.03);
-  border: 1px solid rgba(80, 250, 123, 0.2);
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  width: fit-content;
-  min-width: 100px;
-  position: relative;
-  padding-right: 84px;
-  box-sizing: border-box;
-  flex-shrink: 0;
 }
 
 .command-text {
@@ -1436,8 +1470,8 @@ button {
 .scroll-to-top-button:hover {
   opacity: 1;
   background-color: rgba(98, 114, 164, 0.1);
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 4px 8px rgba(98, 114, 164, 0.2);
+  transform: none;
+  box-shadow: none;
   border-color: rgba(98, 114, 164, 0.8);
 }
 
@@ -1481,7 +1515,7 @@ button {
 .scroll-to-top-button:hover::after {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-8px);
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Add a small arrow to the tooltip */
@@ -1501,7 +1535,7 @@ button {
 .scroll-to-top-button:hover::before {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-4px);
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Password input styling */
