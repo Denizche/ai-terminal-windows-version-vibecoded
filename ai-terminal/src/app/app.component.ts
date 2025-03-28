@@ -1457,4 +1457,35 @@ Using: ${this.currentLLMModel}`,
       this.isAIPanelVisible = false;
     }
   }
+
+  // Method to copy question back to input
+  copyQuestionToInput(question: string): void {
+    // Set the current question
+    this.currentQuestion = question;
+    
+    // Focus the input
+    setTimeout(() => {
+      const textarea = document.querySelector('.ai-panel .prompt-container textarea');
+      if (textarea) {
+        (textarea as HTMLTextAreaElement).focus();
+      }
+    }, 0);
+    
+    // Show a brief notification
+    const notification = document.createElement('div');
+    notification.className = 'copy-notification';
+    notification.textContent = 'Question copied to input';
+    document.body.appendChild(notification);
+    
+    // Animate and remove notification
+    setTimeout(() => {
+      notification.classList.add('show');
+      setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+          document.body.removeChild(notification);
+        }, 300);
+      }, 1200);
+    }, 10);
+  }
 }
