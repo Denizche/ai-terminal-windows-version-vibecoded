@@ -172,6 +172,7 @@ button {
   flex: 1;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden; /* Prevent horizontal scrollbar */
   font-size: 12px;
   line-height: 1.5;
   border-radius: 0;
@@ -183,6 +184,7 @@ button {
   position: relative;
   z-index: 1;
   user-select: text;
+  width: 100%; /* Ensure it takes the full width */
 }
 
 .terminal-panel .input-area {
@@ -676,8 +678,34 @@ button {
 
 /* Add spacing between command output lines */
 .command-output div {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   line-height: 1.4;
   user-select: text;
+  display: block;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure command output line wrapping in all environments */
+.command-output div:not(.processing-indicator) {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  display: block;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 2px 0;
+}
+
+/* Special styling for file listing outputs (like ls command) */
+.command-output div.file-list-output {
+  display: inline-block;
+  vertical-align: top;
+  margin: 2px 12px 2px 0;
+  padding: 0 4px;
 }
 
 /* Command status colors */
@@ -1229,12 +1257,24 @@ button {
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   line-height: 1.4;
   user-select: text;
-  display: inline-block;
-  margin-right: 12px;
+  display: block;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-/* Add specific styling for ls command output */
+/* Ensure command output line wrapping in all environments */
 .command-output div:not(.processing-indicator) {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  display: block;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 2px 0;
+}
+
+/* Special styling for file listing outputs (like ls command) */
+.command-output div.file-list-output {
   display: inline-block;
   vertical-align: top;
   margin: 2px 12px 2px 0;
