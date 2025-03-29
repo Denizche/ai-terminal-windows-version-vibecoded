@@ -20,6 +20,7 @@
                 <li><a href="#features">Features</a></li>
                 <li><a href="#demo">Demo</a></li>
                 <li><a href="#downloads">Downloads</a></li>
+                <li><a href="#installation-help">Installation Help</a></li>
                 <li><a href="#ollama-guide">Ollama Guide</a></li>
             </ul>
             <div class="hamburger">
@@ -33,6 +34,7 @@
                 <li><a href="#features">Features</a></li>
                 <li><a href="#demo">Demo</a></li>
                 <li><a href="#downloads">Downloads</a></li>
+                <li><a href="#installation-help">Installation Help</a></li>
                 <li><a href="#ollama-guide">Ollama Guide</a></li>
             </ul>
         </div>
@@ -191,6 +193,80 @@
         </div>
     </section>
 
+    <section id="installation-help" class="installation-help">
+        <div class="container">
+            <h2 class="title">Installation Troubleshooting</h2>
+            
+            <div class="help-card mac-help">
+                <div class="help-header">
+                    <div class="help-icon">
+                        <i class="fab fa-apple"></i>
+                    </div>
+                    <h3>macOS Gatekeeper Issues</h3>
+                </div>
+                <div class="help-content">
+                    <p class="help-intro">If you're having trouble opening ai-terminal on macOS due to Gatekeeper security features, follow these steps:</p>
+                    
+                    <div class="steps-container">
+                        <ol class="numbered-steps">
+                            <li class="step">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    <strong>After downloading</strong>
+                                    <p>Locate the <code>ai-terminal-0.2.0.dmg</code> in your Downloads folder.</p>
+                                </div>
+                            </li>
+                            <li class="step">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    <strong>Mount the DMG</strong>
+                                    <p>Double-click the DMG file to open it.</p>
+                                </div>
+                            </li>
+                            <li class="step">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    <strong>Install the application</strong>
+                                    <p>Drag the ai-terminal icon to your Applications folder.</p>
+                                </div>
+                            </li>
+                            <li class="step">
+                                <div class="step-number">4</div>
+                                <div class="step-content">
+                                    <strong>Bypass Gatekeeper</strong>
+                                    <p>When you see the message that the app "cannot be opened because it is from an unidentified developer":</p>
+                                    <div class="method-container">
+                                        <div class="method">
+                                            <h4><i class="fas fa-mouse"></i> Method 1: Right-click</h4>
+                                            <ul>
+                                                <li>Right-click (or Control-click) on the app icon</li>
+                                                <li>Select "Open" from the context menu</li>
+                                                <li>Click "Open" in the dialog box that appears</li>
+                                            </ul>
+                                        </div>
+                                        <div class="method">
+                                            <h4><i class="fas fa-cog"></i> Method 2: System Settings</h4>
+                                            <ul>
+                                                <li>Open System Settings</li>
+                                                <li>Go to Privacy & Security</li>
+                                                <li>Scroll down and click "Open Anyway" next to the message about ai-terminal being blocked</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                    
+                    <div class="info-box">
+                        <i class="fas fa-info-circle"></i>
+                        <p>This only needs to be done the first time you run the application. macOS will remember your choice for future launches.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section id="ollama-guide" class="ollama-guide" style="display: block !important; visibility: visible !important;">
         <div class="container">
             <h2 class="title">Quick Guide to Ollama</h2>
@@ -206,7 +282,7 @@
                             </li>
                             <li>
                                 <strong>Download the Model</strong>
-                                <pre><code>ollama pull macsdeve/BetterBash3</code></pre>
+                                <pre><code>ollama pull llama3.2:latest</code></pre>
                             </li>
                         </ol>
                     </div>
@@ -228,7 +304,7 @@
                             </li>
                             <li>
                                 <strong>Download the Model</strong>
-                                <pre><code>ollama pull macsdeve/BetterBash3</code></pre>
+                                <pre><code>ollama pull llama3.2:latest</code></pre>
                             </li>
                         </ol>
                     </div>
@@ -249,7 +325,7 @@
                             </li>
                             <li>
                                 <strong>Download the Model</strong>
-                                <pre><code>ollama pull macsdeve/BetterBash3</code></pre>
+                                <pre><code>ollama pull llama3.2:latest</code></pre>
                             </li>
                         </ol>
                     </div>
