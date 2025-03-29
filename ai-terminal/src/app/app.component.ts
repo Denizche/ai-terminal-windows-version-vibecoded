@@ -747,7 +747,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
       // Join with newlines to preserve the model's formatting
       return {
-        formattedText: formattedParts.join('\n'),
+        formattedText: formattedParts.join(''),
         codeBlocks
       };
     }

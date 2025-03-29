@@ -34,9 +34,7 @@
               <ng-container *ngFor="let line of entry.output">
                 <div *ngIf="!line.includes('Command completed successfully') && 
                            !line.includes('Command failed.') && 
-                           !line.includes('Command started. Output will stream')">
-                  {{ line }}
-                </div>
+                           !line.includes('Command started. Output will stream')">{{ line }}</div>
               </ng-container>
 
               <!-- Copy icon - only show for completed commands with output -->
