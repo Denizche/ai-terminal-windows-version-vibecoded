@@ -1,20 +1,21 @@
 # AI Terminal
 
-A Rust-based terminal application with integrated AI capabilities.
+A Tauri + Angular terminal application with integrated AI capabilities.
 <img width="1207" alt="image" src="https://github.com/user-attachments/assets/703832ae-360d-4bc5-9d8b-339a282d05ff" />
-
 
 ## Features
 
-- Modern UI built with Tauri, using html, css and Typescript
-- Integrated AI assistance
-- Cross-platform support for macOS and Linux
+- Natural language command interpretation
+- Integrated AI assistant
+- Command history and auto-completion
+- Cross-platform support (macOS, Windows, Linux)
+- Modern UI built with Tauri and Angular
 
 ## Requirements
 
-- Rust 1.72 or newer
-- Cargo (Rust's package manager)
-- For Linux builds: GTK3 development libraries
+- Node.js 18+
+- Rust and Cargo
+- For AI features: [Ollama](https://ollama.ai/) (can be installed with `brew install ollama`)
 
 ## Development Setup
 
@@ -24,11 +25,55 @@ A Rust-based terminal application with integrated AI capabilities.
    cd ai-terminal
    ```
 
-2. Build and run the project:
+2. Install dependencies and run the project:
    ```
    cd ai-terminal
-   cargo tauri dev
+   npm install
+   npm run tauri dev
    ```
+
+## Building from Source
+
+### Prerequisites
+
+- Node.js 18+
+- Rust and Cargo
+- Tauri CLI
+
+### macOS Universal Binary
+
+To build a universal binary for macOS (arm64 + x86_64):
+
+```bash
+# Install dependencies
+npm install
+
+# Install create-dmg tool for packaging
+brew install create-dmg
+
+# Run the build script
+chmod +x build-macos.sh
+./build-macos.sh
+```
+
+This will create a universal binary DMG installer at `src-tauri/target/universal-apple-darwin/bundle/dmg/ai-terminal-[version].dmg`.
+
+## Installation
+
+### macOS (Homebrew)
+
+You can install AI Terminal using Homebrew:
+
+```bash
+brew tap AiTerminalFoundations/ai-terminal
+brew install ai-terminal
+```
+
+After installation, you can launch the application from Spotlight or run it from the terminal:
+
+```bash
+ai-terminal
+```
 
 ## Quick Guide to Using Ollama to Download `macsdeve/BetterBash3` Model
 
@@ -71,14 +116,9 @@ Open Terminal and execute:
 ollama pull macsdeve/BetterBash3
 ```
 
-## Additional Notes
+## Contributing
 
-- Make sure you have enough disk space.
-- See more details on the [official Ollama website](https://ollama.com).
-
-
-
-
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
