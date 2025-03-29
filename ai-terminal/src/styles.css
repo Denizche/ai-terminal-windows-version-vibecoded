@@ -15,5 +15,19 @@ app-root {
   overflow: hidden;
 }
 
+/* Prevent horizontal scrollbars in all panels */
+.panel, .panel-content, .output-area, .command-history, .command-entry, .command-output {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Ensure all pre-wrapped text properly wraps */
+pre, code, .command-text, .command-output div {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  max-width: 100%;
+}
+
 /* Import component styles */
 @import './app/app.component.css'; 

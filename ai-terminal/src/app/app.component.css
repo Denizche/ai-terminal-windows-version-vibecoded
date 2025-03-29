@@ -149,6 +149,7 @@ button {
   min-width: 200px;
   max-width: 80%;
   margin: 8px 4px 8px 8px;
+  overflow-x: hidden;
 }
 
 .ai-panel {
@@ -166,6 +167,7 @@ button {
   padding: 0;
   margin: 0;
   background-color: transparent;
+  max-width: 100%;
 }
 
 .output-area {
@@ -387,6 +389,9 @@ button {
   border-radius: 8px;
   opacity: 0.9;
   transition: all 0.2s ease;
+  max-width: 100%;
+  overflow-x: hidden; /* Prevent horizontal overflow */
+  box-sizing: border-box;
 }
 
 .command-entry:hover {
@@ -678,15 +683,16 @@ button {
 
 /* Add spacing between command output lines */
 .command-output div {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  word-break: break-word;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   line-height: 1.4;
   user-select: text;
   display: block;
   max-width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Ensure command output line wrapping in all environments */
@@ -1148,6 +1154,8 @@ button {
   align-items: center;
   border-radius: 4px;
   border: 1px solid rgba(80, 250, 123, 0.2);
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .command-history,
@@ -1238,6 +1246,8 @@ button {
   flex-shrink: 0;
   padding-right: 84px;
   /* Space for icons */
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .command-output {
@@ -1248,18 +1258,21 @@ button {
   background-color: rgba(40, 42, 54, 0.3);
   padding-bottom: 40px;
   /* Add padding to make room for the buttons */
+  max-width: 100%;
+  overflow-x: hidden; /* Explicitly prevent horizontal scrolling */
 }
 
 .command-output div {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  word-break: break-word;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   line-height: 1.4;
   user-select: text;
   display: block;
   max-width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Ensure command output line wrapping in all environments */
