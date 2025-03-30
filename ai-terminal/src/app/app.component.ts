@@ -1,10 +1,18 @@
-import { Component, HostListener, OnInit, ViewChild, ElementRef, AfterViewChecked, OnDestroy, NgZone } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterOutlet } from '@angular/router';
-import { invoke } from "@tauri-apps/api/core";
-import { FormsModule } from '@angular/forms';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import {
+  AfterViewChecked,
+  Component,
+  ElementRef,
+  HostListener,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  ViewChild
+} from '@angular/core';
+import {CommonModule} from '@angular/common';
+import {invoke} from "@tauri-apps/api/core";
+import {FormsModule} from '@angular/forms';
+import {listen, UnlistenFn} from '@tauri-apps/api/event';
+import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 
 interface CommandHistory {
   command: string;
@@ -24,11 +32,10 @@ interface ChatHistory {
 }
 
 @Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [CommonModule, RouterOutlet, FormsModule],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+    selector: 'app-root',
+    imports: [CommonModule, FormsModule],
+    templateUrl: './app.component.html',
+    styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   // Terminal properties
@@ -43,7 +50,6 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   autocompleteSuggestions: string[] = [];
   showSuggestions: boolean = false;
   selectedSuggestionIndex: number = -1;
-  lastTabPressTime: number = 0;
 
   // AI Chat properties
   chatHistory: ChatHistory[] = [];
@@ -90,13 +96,13 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     this.loadCommandHistory();
 
     // Get initial working directory
-    this.getCurrentDirectory();
+    await this.getCurrentDirectory();
 
     // Clean any existing code blocks to ensure no backticks are displayed
     this.sanitizeAllCodeBlocks();
 
     // Test the Ollama connection
-    this.testOllamaConnection();
+    await this.testOllamaConnection();
 
     // Set up event listeners for command output streaming
     try {
@@ -370,11 +376,9 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       }
 
       // Get autocomplete suggestions from backend
-      const suggestions = await invoke<string[]>("autocomplete", {
+      this.autocompleteSuggestions = await invoke<string[]>("autocomplete", {
         input: this.currentCommand
       });
-
-      this.autocompleteSuggestions = suggestions;
 
       // Don't automatically show suggestions - they will be shown on Tab
       // Just collect them in the background
@@ -544,7 +548,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     // Auto-suggest in the background (but don't show) as the user types
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' &&
       this.currentCommand.trim().length >= 1 && !this.isProcessing) {
-      this.requestAutocomplete();
+      await this.requestAutocomplete();
     }
 
     // Hide suggestions when pressing Enter to execute command
@@ -658,7 +662,6 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   // Add a new method to parse commands from AI responses
   parseCommandFromResponse(response: string): { command: string, fullText: string }[] {
     const results: { command: string, fullText: string }[] = [];
-    let currentText = response;
     let lastIndex = 0;
 
     // First handle triple backtick blocks
@@ -731,7 +734,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       console.log("Found command parts:", commandParts);
 
       // Build the formatted text with placeholders and collect code blocks
-      const formattedParts = commandParts.map((part, index) => {
+      const formattedParts = commandParts.map((part) => {
         if (part.command) {
           // This is a command block
           codeBlocks.push({
@@ -792,7 +795,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     const codeBlockRegex = /```([\w-]*)?(?:\s*\n)?([\s\S]*?)```/gm;
 
     // Replace code blocks with placeholders while storing extracted code
-    let formattedText = text.replace(codeBlockRegex, (match, language, code) => {
+    let formattedText = text.replace(codeBlockRegex, (language, code) => {
       // Skip empty matches
       if (!code || !code.trim()) {
         return '';
@@ -1016,7 +1019,7 @@ IMPORTANT RULES:
         const modelExists = await this.checkModelExists(this.currentLLMModel);
 
         if (!modelExists) {
-          // The default model doesn't exist and we've already tried to auto-switch
+          // The default model doesn't exist, and we've already tried to auto-switch
           response = "Error: The model could not be found. Please check available models with /models and select one with /model [name].";
         } else {
           // Call Ollama directly
@@ -1061,22 +1064,6 @@ IMPORTANT RULES:
         !line.includes('Command completed successfully') &&
         !line.includes('Command failed.'))
       .join('\n');
-  }
-
-  // Add helper method to check for errors in command output
-  hasErrors(entry: CommandHistory): boolean {
-    // If success is undefined, fall back to checking for "Error:" in output
-    if (entry.success === undefined) {
-      return entry.output.some(line => line.startsWith('Error:'));
-    }
-    return !entry.success;
-  }
-
-  isRealErrorLine(line: string, commandFailed: boolean): boolean {
-    // Only mark as error if:
-    // 1. The command actually failed (non-zero exit)
-    // 2. The line starts with "Error:"
-    return commandFailed && line.startsWith('Error:');
   }
 
   toggleAIPanel(): void {
@@ -1260,11 +1247,6 @@ Available commands:
     }
 
     return cleanCode;
-  }
-
-  // Additional debug function
-  logCodeBlock(codeBlock: any): void {
-    console.log('Code block:', codeBlock);
   }
 
   // Make sure all code blocks in the chat history are properly sanitized
@@ -1469,8 +1451,8 @@ Using: ${this.currentLLMModel}`,
         } else {
           // Ollama is running but no models are available
           this.chatHistory.push({
-            message: " System",
-            response: "Connected to Ollama API, but no models are available. Please install models with 'ollama pull <model>'.",
+            message: "System",
+            response: `Connected to Ollama API, but no models are available. Please install models with \"ollama pull <model>\".`,
             timestamp: new Date(),
             isCommand: true
           });

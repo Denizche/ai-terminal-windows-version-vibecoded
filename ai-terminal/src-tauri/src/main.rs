@@ -91,20 +91,20 @@ fn execute_command(
     if command.starts_with("cd ") || command == "cd" {
         let path = command.trim_start_matches("cd").trim();
         
-        // Handle empty cd, cd ~, or cd ~/ to go to home directory
+        // Handle empty cd, cd ~, or cd ~/ to go to the home directory
         if path.is_empty() || path == "~" || path == "~/" {
-            if let Some(home_dir) = dirs::home_dir() {
+            return if let Some(home_dir) = dirs::home_dir() {
                 let home_path = home_dir.to_string_lossy().to_string();
                 state.current_dir = home_path.clone();
-                
+
                 // Emit command_end event to mark the command as complete
                 let _ = app_handle.emit("command_end", "Command completed successfully.");
-                
-                return Ok(format!("Changed directory to {}", home_path));
+
+                Ok(format!("Changed directory to {}", home_path))
             } else {
                 // Emit command_end event even for errors
                 let _ = app_handle.emit("command_end", "Command failed.");
-                return Err("Could not determine home directory".to_string());
+                Err("Could not determine home directory".to_string())
             }
         }
         
@@ -149,19 +149,19 @@ fn execute_command(
             
             result_path
         };
-        
-        if new_path.exists() {
+
+        return if new_path.exists() {
             // Update current directory
             state.current_dir = new_path.to_string_lossy().to_string();
-            
+
             // Emit command_end event immediately to mark the command as complete
             let _ = app_handle.emit("command_end", "Command completed successfully.");
-            
-            return Ok(format!("Changed directory to {}", state.current_dir));
+
+            Ok(format!("Changed directory to {}", state.current_dir))
         } else {
             // Emit command_end event for errors immediately
             let _ = app_handle.emit("command_end", "Command failed.");
-            return Err(format!("Directory not found: {}", path));
+            Err(format!("Directory not found: {}", path))
         }
     }
 
@@ -189,14 +189,14 @@ fn execute_command(
             .output()
             .map_err(|e| e.to_string())?;
 
-        if output.status.success() {
+        return if output.status.success() {
             // Emit command_end event for successful commands
             let _ = app_handle.emit("command_end", "Command completed successfully.");
-            return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
         } else {
             // Emit command_end event for failed commands
             let _ = app_handle.emit("command_end", "Command failed.");
-            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+            Err(String::from_utf8_lossy(&output.stderr).to_string())
         }
     }
     
@@ -786,14 +786,14 @@ async fn handle_special_command(
             let parts: Vec<&str> = cmd.split_whitespace().collect();
             
             // Handle showing current model
-            if parts.len() == 1 {
+            return if parts.len() == 1 {
                 let current_model;
                 {
                     let ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
                     current_model = ollama_state.current_model.clone();
                 }
-                return Ok(format!("Current model: {}", current_model));
-            } 
+                Ok(format!("Current model: {}", current_model))
+            }
             // Handle switching model
             else if parts.len() >= 2 {
                 let new_model = parts[1].to_string();
@@ -801,23 +801,23 @@ async fn handle_special_command(
                     let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
                     ollama_state.current_model = new_model.clone();
                 }
-                return Ok(format!("Switched to model: {}", new_model));
+                Ok(format!("Switched to model: {}", new_model))
             } else {
-                return Err("Invalid model command. Use /model [name] to switch models.".to_string());
+                Err("Invalid model command. Use /model [name] to switch models.".to_string())
             }
         }
         cmd if cmd.starts_with("/host") => {
             let parts: Vec<&str> = cmd.split_whitespace().collect();
             
             // Handle showing current host
-            if parts.len() == 1 {
+            return if parts.len() == 1 {
                 let current_host;
                 {
                     let ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
                     current_host = ollama_state.api_host.clone();
                 }
-                return Ok(format!("Current Ollama API host: {}", current_host));
-            } 
+                Ok(format!("Current Ollama API host: {}", current_host))
+            }
             // Handle changing host
             else if parts.len() >= 2 {
                 let new_host = parts[1].to_string();
@@ -825,9 +825,9 @@ async fn handle_special_command(
                     let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
                     ollama_state.api_host = new_host.clone();
                 }
-                return Ok(format!("Changed Ollama API host to: {}", new_host));
+                Ok(format!("Changed Ollama API host to: {}", new_host))
             } else {
-                return Err("Invalid host command. Use /host [url] to change the API host.".to_string());
+                Err("Invalid host command. Use /host [url] to change the API host.".to_string())
             }
         }
         _ => Err(format!("Unknown command: {}. Type /help for available commands.", command))
