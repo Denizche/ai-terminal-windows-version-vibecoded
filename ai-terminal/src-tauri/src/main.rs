@@ -1,7 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use dirs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -187,7 +186,7 @@ fn execute_command(
     if !is_long_running {
         let output = Command::new("sh")
             .arg("-c")
-            .arg(format!("{}", command.replace('"', "'"))) // Replace double quotes with single quotes
+            .arg(command.replace('"', "'").to_string()) // Replace double quotes with single quotes
             .current_dir(&state.current_dir)
             .output()
             .map_err(|e| e.to_string())?;
@@ -209,13 +208,13 @@ fn execute_command(
     let app_handle_clone = app_handle.clone();
 
     // Return immediately with initial message
-    let mut child = match Command::new("sh")
+    let child = match Command::new("sh")
         .arg("-c")
         // On macOS, prefix the command with exec to ensure signals propagate correctly
         // For sudo commands, we need to make sure terminal output is properly redirected
         .arg(if command_clone.contains("sudo") {
             // For sudo commands, make sure to capture all output
-            format!("{}", &command_clone)
+            (&command_clone).to_string()
         } else {
             format!("exec {}", &command_clone)
         })
@@ -239,7 +238,7 @@ fn execute_command(
     if let Some(stdout) = child_arc.lock().unwrap().stdout.take() {
         let app_handle_stdout = app_handle_clone.clone();
         thread::spawn(move || {
-            let mut reader = BufReader::with_capacity(1024, stdout);
+            let reader = BufReader::with_capacity(1024, stdout);
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
@@ -262,7 +261,7 @@ fn execute_command(
     if let Some(stderr) = child_arc.lock().unwrap().stderr.take() {
         let app_handle_stderr = app_handle_clone.clone();
         thread::spawn(move || {
-            let mut reader = BufReader::with_capacity(1024, stderr);
+            let reader = BufReader::with_capacity(1024, stderr);
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
@@ -331,7 +330,7 @@ fn execute_sudo_command(
 
     let current_dir = state.current_dir.clone();
 
-    let mut child = match Command::new("sudo")
+    let child = match Command::new("sudo")
         .arg("-S")
         .arg("bash")
         .arg("-c")
@@ -361,12 +360,12 @@ fn execute_sudo_command(
     if let Some(mut stdin) = child_arc.lock().unwrap().stdin.take() {
         let app_handle_stdin = app_handle.clone();
         thread::spawn(move || {
-            if let Err(_) = stdin.write_all(format!("{}\n", password).as_bytes()) {
+            if stdin.write_all(format!("{}\n", password).as_bytes()).is_err() {
                 let _ = app_handle_stdin.emit("command_error", "Failed to send password to sudo");
                 return;
             }
 
-            if let Err(_) = stdin.flush() {
+            if stdin.flush().is_err() {
                 let _ = app_handle_stdin.emit("command_error", "Failed to flush password to sudo");
             }
         });
@@ -375,7 +374,7 @@ fn execute_sudo_command(
     if let Some(stdout) = child_arc.lock().unwrap().stdout.take() {
         let app_handle_stdout = app_handle.clone();
         thread::spawn(move || {
-            let mut reader = BufReader::with_capacity(1024, stdout);
+            let reader = BufReader::with_capacity(1024, stdout);
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
@@ -396,7 +395,7 @@ fn execute_sudo_command(
     if let Some(stderr) = child_arc.lock().unwrap().stderr.take() {
         let app_handle_stderr = app_handle.clone();
         thread::spawn(move || {
-            let mut reader = BufReader::with_capacity(1024, stderr);
+            let reader = BufReader::with_capacity(1024, stderr);
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
@@ -524,7 +523,7 @@ fn autocomplete(
         return Err("Could not determine current directory".to_string());
     };
 
-    let input_parts: Vec<&str> = input.trim().split_whitespace().collect();
+    let input_parts: Vec<&str> = input.split_whitespace().collect();
 
     // Autocomplete commands if it's the first word
     if input_parts.len() <= 1 {
@@ -536,7 +535,7 @@ fn autocomplete(
         ];
 
         // Filter commands that match input prefix
-        let input_prefix = input_parts.get(0).unwrap_or(&"");
+        let input_prefix = input_parts.first().unwrap_or(&"");
 
         // Case-insensitive filtering for commands
         let matches: Vec<String> = common_commands
@@ -559,7 +558,7 @@ fn autocomplete(
             // Handle cd with no argument - show all directories in current folder
             ""
         }
-    } else if input_parts.len() > 0 && input_parts[0].contains('/') {
+    } else if !input_parts.is_empty() && input_parts[0].contains('/') {
         // Handle path directly
         input_parts[0]
     } else if input_parts.len() > 1 {
@@ -572,7 +571,7 @@ fn autocomplete(
 
     // If input starts with cd, or we have a potential path to complete
     if input_parts.first() == Some(&"cd") || !path_to_complete.is_empty() {
-        let (dir_to_search, prefix) = split_path_prefix(&path_to_complete);
+        let (dir_to_search, prefix) = split_path_prefix(path_to_complete);
 
         // Create a Path for the directory to search
         let search_path = if dir_to_search.starts_with('/') || dir_to_search.starts_with('~') {
@@ -635,7 +634,7 @@ fn autocomplete(
 
             if !matches.is_empty() {
                 // Sort matches alphabetically, case-insensitive
-                matches.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+                matches.sort_by_key(|a| a.to_lowercase());
                 return Ok(matches);
             }
         }
@@ -808,7 +807,7 @@ async fn handle_special_command(
             let parts: Vec<&str> = cmd.split_whitespace().collect();
 
             // Handle showing current model
-            return if parts.len() == 1 {
+            if parts.len() == 1 {
                 let current_model;
                 {
                     let ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
@@ -827,13 +826,13 @@ async fn handle_special_command(
                 Ok(format!("Switched to model: {}", new_model))
             } else {
                 Err("Invalid model command. Use /model [name] to switch models.".to_string())
-            };
+            }
         }
         cmd if cmd.starts_with("/host") => {
             let parts: Vec<&str> = cmd.split_whitespace().collect();
 
             // Handle showing current host
-            return if parts.len() == 1 {
+            if parts.len() == 1 {
                 let current_host;
                 {
                     let ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
@@ -852,7 +851,7 @@ async fn handle_special_command(
                 Ok(format!("Changed Ollama API host to: {}", new_host))
             } else {
                 Err("Invalid host command. Use /host [url] to change the API host.".to_string())
-            };
+            }
         }
         _ => Err(format!(
             "Unknown command: {}. Type /help for available commands.",
