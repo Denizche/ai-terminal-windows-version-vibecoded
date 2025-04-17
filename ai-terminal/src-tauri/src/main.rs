@@ -82,7 +82,7 @@ fn execute_command(
     let key = "default_state".to_string();
 
     let state = states.entry(key.clone()).or_insert_with(|| CommandState {
-        current_dir: std::env::current_dir()
+        current_dir: env::current_dir()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string(),
@@ -111,7 +111,7 @@ fn execute_command(
         }
 
         // Create a path object for proper path resolution
-        let current_path = std::path::Path::new(&state.current_dir);
+        let current_path = Path::new(&state.current_dir);
         let new_path = if path.starts_with('~') {
             // Handle paths starting with ~ by expanding to home directory
             if let Some(home_dir) = dirs::home_dir() {
@@ -186,7 +186,7 @@ fn execute_command(
     if !is_long_running {
         let output = Command::new("sh")
             .arg("-c")
-            .arg(command.replace('"', "'").to_string()) // Replace double quotes with single quotes
+            .arg(command.replace('"', "'")) // Replace double quotes with single quotes
             .current_dir(&state.current_dir)
             .output()
             .map_err(|e| e.to_string())?;
@@ -214,7 +214,7 @@ fn execute_command(
         // For sudo commands, we need to make sure terminal output is properly redirected
         .arg(if command_clone.contains("sudo") {
             // For sudo commands, make sure to capture all output
-            (&command_clone).to_string()
+            command_clone.to_string()
         } else {
             format!("exec {}", &command_clone)
         })
@@ -321,7 +321,7 @@ fn execute_sudo_command(
 
     let key = "default_state".to_string();
     let state = states.entry(key.clone()).or_insert_with(|| CommandState {
-        current_dir: std::env::current_dir()
+        current_dir: env::current_dir()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string(),
@@ -466,7 +466,7 @@ fn terminate_command(command_manager: State<'_, CommandManager>) -> Result<Strin
                         .status();
 
                     // Give a brief moment for graceful termination
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    thread::sleep(std::time::Duration::from_millis(100));
 
                     // Then kill with SIGTERM (more forceful termination)
                     let _ = Command::new("sh")
@@ -475,7 +475,7 @@ fn terminate_command(command_manager: State<'_, CommandManager>) -> Result<Strin
                         .status();
 
                     // Brief pause
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    thread::sleep(std::time::Duration::from_millis(100));
 
                     // And finally, if still alive, use SIGKILL (force kill)
                     let _ = Command::new("sh")
@@ -595,40 +595,39 @@ fn autocomplete(
             let entries = fs::read_dir(search_path).map_err(|e| e.to_string())?;
 
             let mut matches = Vec::new();
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let file_name = entry.file_name();
-                    let file_name_str = file_name.to_string_lossy();
+            for entry in entries.flatten() {
 
-                    // Include all entries for empty prefix, otherwise filter by prefix (case-insensitive)
-                    if prefix.is_empty()
-                        || file_name_str
-                            .to_lowercase()
-                            .starts_with(&prefix.to_lowercase())
-                    {
-                        let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+                let file_name = entry.file_name();
+                let file_name_str = file_name.to_string_lossy();
 
-                        // For 'cd' command, only show directories
-                        if input_parts.first() == Some(&"cd") && !is_dir {
-                            continue;
-                        }
+                // Include all entries for empty prefix, otherwise filter by prefix (case-insensitive)
+                if prefix.is_empty()
+                    || file_name_str
+                        .to_lowercase()
+                        .starts_with(&prefix.to_lowercase())
+                {
+                    let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
 
-                        // Add trailing slash for directories
-                        let suggestion = if is_dir {
-                            format!("{}/", file_name_str)
-                        } else {
-                            file_name_str.to_string()
-                        };
-
-                        // Construct the full path suggestion for the command
-                        let base_path = if dir_to_search.is_empty() {
-                            "".to_string()
-                        } else {
-                            format!("{}/", dir_to_search.trim_end_matches('/'))
-                        };
-
-                        matches.push(format!("{}{}", base_path, suggestion));
+                    // For 'cd' command, only show directories
+                    if input_parts.first() == Some(&"cd") && !is_dir {
+                        continue;
                     }
+
+                    // Add trailing slash for directories
+                    let suggestion = if is_dir {
+                        format!("{}/", file_name_str)
+                    } else {
+                        file_name_str.to_string()
+                    };
+
+                    // Construct the full path suggestion for the command
+                    let base_path = if dir_to_search.is_empty() {
+                        "".to_string()
+                    } else {
+                        format!("{}/", dir_to_search.trim_end_matches('/'))
+                    };
+
+                    matches.push(format!("{}{}", base_path, suggestion));
                 }
             }
 
@@ -663,7 +662,7 @@ fn get_working_directory(command_manager: State<'_, CommandManager>) -> Result<S
     let dir = if let Some(state) = states.get(&key) {
         state.current_dir.clone()
     } else {
-        std::env::current_dir()
+        env::current_dir()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string()
