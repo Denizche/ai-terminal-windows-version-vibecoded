@@ -30,17 +30,12 @@ dependencies = [
 name = "ai-terminal"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "dirs",
- "lazy_static",
- "libc",
  "reqwest",
  "serde",
- "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
- "tokio",
 ]
 
 [[package]]
@@ -510,10 +505,8 @@ checksum = "1a7964611d71df112cb1730f2ee67324fcf4d0fc6606acbbe9bfe06df124637c"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
- "js-sys",
  "num-traits",
  "serde",
- "wasm-bindgen",
  "windows-link",
 ]
 
@@ -4241,23 +4234,9 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
- "signal-hook-registry",
  "socket2",
- "tokio-macros",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "tokio-macros"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.100",
 ]
 
 [[package]]
