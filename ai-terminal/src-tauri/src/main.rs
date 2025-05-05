@@ -44,6 +44,7 @@ struct OllamaModelList {
 struct CommandState {
     current_dir: String,
     current_process: Option<Arc<Mutex<Child>>>,
+    pid: Option<u32>,
 }
 
 // Add Ollama state management
@@ -70,6 +71,12 @@ impl CommandManager {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct CommandResponse {
+    pid: u32,
+    message: String,
+}
+
 #[command]
 fn execute_command(
     command: String,
@@ -87,6 +94,7 @@ fn execute_command(
             .to_string_lossy()
             .to_string(),
         current_process: None,
+        pid: None,
     });
 
     // Handle cd command specially
@@ -230,11 +238,15 @@ fn execute_command(
         }
     };
 
+    // Get the PID of the child process
+    let pid = child.id();
+    state.pid = Some(pid);
+
     // Store the child process to allow for termination
     let child_arc = Arc::new(Mutex::new(child));
     state.current_process = Some(child_arc.clone());
 
-    // Create separate thread to read stdout
+    // Create a separate thread to read stdout
     if let Some(stdout) = child_arc.lock().unwrap().stdout.take() {
         let app_handle_stdout = app_handle_clone.clone();
         thread::spawn(move || {
@@ -257,7 +269,7 @@ fn execute_command(
         });
     }
 
-    // Create separate thread to read stderr
+    // Create a separate thread to read stderr
     if let Some(stderr) = child_arc.lock().unwrap().stderr.take() {
         let app_handle_stderr = app_handle_clone.clone();
         thread::spawn(move || {
@@ -326,6 +338,7 @@ fn execute_sudo_command(
             .to_string_lossy()
             .to_string(),
         current_process: None,
+        pid: None,
     });
 
     let current_dir = state.current_dir.clone();
@@ -439,74 +452,6 @@ fn execute_sudo_command(
     });
 
     Ok("Sudo command started. Output will stream in real-time.".to_string())
-}
-
-#[command]
-fn terminate_command(command_manager: State<'_, CommandManager>) -> Result<String, String> {
-    let mut states = command_manager.commands.lock().map_err(|e| e.to_string())?;
-    let key = "default_state".to_string();
-
-    if let Some(state) = states.get_mut(&key) {
-        if let Some(process) = &state.current_process {
-            // Try to get the process ID
-            let pid = match process.lock() {
-                Ok(child) => child.id(),
-                Err(_) => 0, // Invalid PID
-            };
-
-            // Terminate all child processes directly from the shell
-            if pid > 0 {
-                #[cfg(unix)]
-                {
-                    // MacOS-specific approach - use process groups
-                    // First, try kill with SIGINT (equivalent to Ctrl+C)
-                    let _ = Command::new("sh")
-                        .arg("-c")
-                        .arg(format!("kill -INT -{}", pid))
-                        .status();
-
-                    // Give a brief moment for graceful termination
-                    thread::sleep(std::time::Duration::from_millis(100));
-
-                    // Then kill with SIGTERM (more forceful termination)
-                    let _ = Command::new("sh")
-                        .arg("-c")
-                        .arg(format!("kill -TERM -{}", pid))
-                        .status();
-
-                    // Brief pause
-                    thread::sleep(std::time::Duration::from_millis(100));
-
-                    // And finally, if still alive, use SIGKILL (force kill)
-                    let _ = Command::new("sh")
-                        .arg("-c")
-                        .arg(format!("kill -KILL -{}", pid))
-                        .status();
-
-                    // Also try direct process kill as fallback
-                    let _ = Command::new("sh")
-                        .arg("-c")
-                        .arg(format!("kill -KILL {}", pid))
-                        .status();
-                }
-
-                #[cfg(windows)]
-                {
-                    let _ = Command::new("taskkill")
-                        .arg("/F") // Force kill
-                        .arg("/T") // Kill child processes too
-                        .arg(format!("/PID {}", pid))
-                        .status();
-                }
-            }
-
-            // Clear our reference to the process
-            state.current_process = None;
-        }
-    }
-
-    // Return success regardless to unblock the UI
-    Ok("Command terminated".to_string())
 }
 
 #[command]
@@ -958,6 +903,80 @@ fn get_git_branch(command_manager: State<'_, CommandManager>) -> Result<String, 
     }
 }
 
+#[tauri::command]
+fn get_current_pid(command_manager: State<'_, CommandManager>) -> Result<u32, String> {
+    let states = command_manager.commands.lock().map_err(|e| e.to_string())?;
+    let key = "default_state".to_string();
+    
+    if let Some(state) = states.get(&key) {
+        Ok(state.pid.unwrap_or(0))
+    } else {
+        Ok(0)
+    }
+}
+
+#[tauri::command]
+fn terminate_command(command_manager: State<'_, CommandManager>) -> Result<(), String> {
+    let mut states = command_manager.commands.lock().map_err(|e| e.to_string())?;
+    let key = "default_state".to_string();
+    
+    let pid = if let Some(state) = states.get(&key) {
+        state.pid.unwrap_or(0)
+    } else {
+        return Err("No active process found".to_string());
+    };
+
+    if pid == 0 {
+        return Err("No active process to terminate".to_string());
+    }
+
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{kill, Signal};
+        use nix::unistd::Pid;
+
+        // Try to send SIGTERM first
+        if let Err(err) = kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
+            return Err(format!("Failed to send SIGTERM: {}", err));
+        }
+
+        // Give the process a moment to terminate gracefully
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // If it's still running, force kill with SIGKILL
+        if let Err(err) = kill(Pid::from_raw(pid as i32), Signal::SIGKILL) {
+            return Err(format!("Failed to send SIGKILL: {}", err));
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+        use windows::Win32::Foundation::CloseHandle;
+
+        unsafe {
+            let handle = OpenProcess(PROCESS_TERMINATE, false, pid);
+            if handle.is_invalid() {
+                return Err("Failed to open process".to_string());
+            }
+
+            if !TerminateProcess(handle, 0).as_bool() {
+                CloseHandle(handle);
+                return Err("Failed to terminate process".to_string());
+            }
+
+            CloseHandle(handle);
+        }
+    }
+
+    // Clear the PID after successful termination
+    if let Some(state) = states.get_mut(&key) {
+        state.pid = None;
+    }
+
+    Ok(())
+}
+
 fn main() {
     // Create a new command manager
     let command_manager = CommandManager::new();
@@ -973,6 +992,7 @@ fn main() {
             execute_command,
             execute_sudo_command,
             terminate_command,
+            get_current_pid,
             autocomplete,
             get_working_directory,
             get_home_directory,

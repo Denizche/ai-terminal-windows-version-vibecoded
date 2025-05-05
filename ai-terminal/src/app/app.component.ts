@@ -305,8 +305,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   // Handle key presses globally
   @HostListener('document:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
-    // Temporarily disabled Ctrl+C functionality
-    /*
+
+
     // Handle Ctrl+C to terminate running command
     if (event.ctrlKey && event.key === 'c' && this.isProcessing) {
       event.preventDefault();
@@ -314,7 +314,6 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       this.terminateCommand();
       return;
     }
-    */
   }
 
   startResize(event: MouseEvent | TouchEvent) {
