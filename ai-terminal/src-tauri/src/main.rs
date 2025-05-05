@@ -175,42 +175,7 @@ fn execute_command(
         };
     }
 
-    // Handle long-running commands with real-time output
-    let is_long_running = command.starts_with("cargo")
-        || command.starts_with("ping")
-        || command.starts_with("npm")
-        || command.starts_with("node")
-        || command.starts_with("python")
-        || command.starts_with("java")
-        || command.starts_with("sudo")
-        || command.contains("watch")
-        || command.contains("--progress")
-        || command.contains("-v")
-        || command.contains("tail")
-        || command.contains("top")
-        || command.contains("sleep");
-
-    // For fast commands, execute synchronously
-    if !is_long_running {
-        let output = Command::new("sh")
-            .arg("-c")
-            .arg(command.replace('"', "'")) // Replace double quotes with single quotes
-            .current_dir(&state.current_dir)
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        return if output.status.success() {
-            // Emit command_end event for successful commands
-            let _ = app_handle.emit("command_end", "Command completed successfully.");
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
-        } else {
-            // Emit command_end event for failed commands
-            let _ = app_handle.emit("command_end", "Command failed.");
-            Err(String::from_utf8_lossy(&output.stderr).to_string())
-        };
-    }
-
-    // For long-running commands, stream output in real-time
+    // For all other commands, stream output in real-time
     let current_dir = state.current_dir.clone();
     let command_clone = command.clone();
     let app_handle_clone = app_handle.clone();
