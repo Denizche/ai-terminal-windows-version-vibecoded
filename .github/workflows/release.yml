@@ -43,29 +43,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Angular
-        run: |
-          cd ai-terminal
-          npm run build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build Tauri
-        run: |
-          cd ai-terminal
-          npm run tauri build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # - name: Sign macOS app
-      #   if: matrix.os == 'macos-latest'
-      #   run: |
-      #     # Add your code signing steps here
-      #     # Example: codesign --force --sign "Developer ID Application: Your Name (TEAM_ID)" dist/your-app.app
-      #   env:
-      #     APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      #     APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-
       - name: Generate tag
         run: |
           cd ai-terminal
