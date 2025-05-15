@@ -41,9 +41,21 @@ jobs:
       #     APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       #     APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
+      - name: Generate tag
+        run: |
+          cd ai-terminal
+          VERSION=$(node -p "require('./package.json').version")
+          echo "RELEASE_TAG=v${VERSION}" >> $GITHUB_ENV
+
+      - name: Create and push tag
+        run: |
+          git tag ${{ env.RELEASE_TAG }}
+          git push origin ${{ env.RELEASE_TAG }}
+
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: |
             ai-terminal/dist/**/*.AppImage
             ai-terminal/dist/**/*.dmg
