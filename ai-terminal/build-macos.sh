@@ -43,7 +43,7 @@ cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/ai-terminal.app/Co
 
 # Sign the application bundle
 echo "🔑 Signing application bundle..."
-codesign --force --options runtime --sign "Developer ID Application: $APPLE_DEVELOPER_ID" \
+codesign --force --options runtime --sign "Developer ID Application: Michele Verriello (4VH6NYWG45)" \
   --entitlements src-tauri/entitlements.plist \
   "$APP_PATH" --deep --timestamp
 
@@ -84,7 +84,7 @@ fi
 
 # Sign the DMG
 echo "🔑 Signing DMG..."
-codesign --force --sign "Developer ID Application: $APPLE_DEVELOPER_ID" "$DMG_PATH" --timestamp
+codesign --force --sign "Developer ID Application: Michele Verriello (4VH6NYWG45)" "$DMG_PATH" --timestamp
 
 # Notarize the DMG
 echo "📝 Notarizing DMG..."
