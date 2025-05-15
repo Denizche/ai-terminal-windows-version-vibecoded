@@ -41,6 +41,12 @@ cp src-tauri/target/universal-apple-darwin/release/ai-terminal "$APP_PATH/Conten
 cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/macos/ai-terminal.app/Contents/Resources "$APP_PATH/Contents/"
 cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/ai-terminal.app/Contents/Info.plist "$APP_PATH/Contents/"
 
+# Sign the application bundle
+echo "🔑 Signing application bundle..."
+codesign --force --options runtime --sign "Developer ID Application: $APPLE_DEVELOPER_ID" \
+  --entitlements src-tauri/entitlements.plist \
+  "$APP_PATH" --deep --timestamp
+
 # Create DMG
 echo "📦 Creating DMG installer..."
 DMG_PATH="src-tauri/target/universal-apple-darwin/bundle/dmg/ai-terminal-$VERSION.dmg"
@@ -75,6 +81,22 @@ else
   # Clean up
   rm -rf "$TMP_DMG_DIR"
 fi
+
+# Sign the DMG
+echo "🔑 Signing DMG..."
+codesign --force --sign "Developer ID Application: $APPLE_DEVELOPER_ID" "$DMG_PATH" --timestamp
+
+# Notarize the DMG
+echo "📝 Notarizing DMG..."
+xcrun notarytool submit "$DMG_PATH" \
+  --key "$APPLE_API_KEY" \
+  --key-id "$APPLE_API_KEY_ID" \
+  --issuer "$APPLE_API_ISSUER" \
+  --wait
+
+# Staple the notarization ticket
+echo "📎 Stapling notarization ticket to DMG..."
+xcrun stapler staple "$DMG_PATH"
 
 # Calculate SHA256 for Homebrew
 SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
