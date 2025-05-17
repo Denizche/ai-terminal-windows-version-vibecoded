@@ -85,7 +85,7 @@ jobs:
       - name: Update Homebrew Formula and Cask
         env:
           HOMEBREW_TAP_REPO: AiTerminalFoundation/homebrew-ai-terminal
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TOKEN }}
         run: |
           # Clone the tap repository
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/AiTerminalFoundation/homebrew-ai-terminal.git homebrew-tap

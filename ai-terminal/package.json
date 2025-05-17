@@ -1,6 +1,6 @@
 {
   "name": "ai-terminal",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --proxy-config proxy.conf.json",
