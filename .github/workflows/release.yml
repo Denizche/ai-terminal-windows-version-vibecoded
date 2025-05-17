@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    branch:
-      "master"
+    branches:
+      - "master"
 
 jobs:
   build:
@@ -81,3 +81,36 @@ jobs:
             ai-terminal/src-tauri/target/universal-apple-darwin/bundle/dmg/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Formula and Cask
+        if: github.event_name == 'release' && github.event.action == 'published'
+        env:
+          HOMEBREW_TAP_REPO: AiTerminalFoundation/homebrew-ai-terminal
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Clone the tap repository
+          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/AiTerminalFoundation/homebrew-ai-terminal.git homebrew-tap
+          cd homebrew-tap
+
+          # Set version variables
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION_NUMBER="${VERSION#v}"
+          DMG_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/${VERSION}/ai-terminal-${VERSION_NUMBER}.dmg"
+          SHA256=$(curl -sL "${DMG_URL}" | shasum -a 256 | awk '{print $1}')
+
+          # Update Formula/ai-terminal.rb
+          sed -i '' "s/version \".*\"/version \"${VERSION_NUMBER}\"/" Formula/ai-terminal.rb
+          sed -i '' "s|url \".*\"|url \"${DMG_URL}\"|" Formula/ai-terminal.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/ai-terminal.rb
+
+          # Update Casks/ai-terminal.rb
+          sed -i '' "s/version \".*\"/version \"${VERSION_NUMBER}\"/" Casks/ai-terminal.rb
+          sed -i '' "s|url \".*\"|url \"${DMG_URL}\"|" Casks/ai-terminal.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/ai-terminal.rb
+
+          # Commit and push changes
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/ai-terminal.rb Casks/ai-terminal.rb
+          git commit -m "Update ai-terminal to ${VERSION}"
+          git push
