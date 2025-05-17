@@ -3,7 +3,7 @@
   <div class="panel terminal-panel" [style.width.px]="leftPanelWidth" [ngClass]="{'full-width': !isAIPanelVisible}">
     <div class="panel-content">
       <div class="terminal-header">
-        <span class="panel-title">Terminal</span>
+        <span class="panel-title">Terminal v{{version}}</span>
         <!-- Show AI button - only visible when AI panel is hidden -->
         <button class="toggle-ai-button" (click)="toggleAIPanel()" *ngIf="!isAIPanelVisible">
           Show AI

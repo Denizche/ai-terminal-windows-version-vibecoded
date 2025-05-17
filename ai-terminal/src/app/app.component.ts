@@ -45,6 +45,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   currentWorkingDirectory: string = '~';
   commandHistoryIndex: number = -1; // Current position in command history navigation
   gitBranch: string = ''; // Add Git branch property
+  version: string = ''; // Add version property
 
   // Autocomplete properties
   autocompleteSuggestions: string[] = [];
@@ -97,6 +98,15 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
     // Get initial working directory
     await this.getCurrentDirectory();
+
+    // Load version from package.json
+    try {
+      const packageJson = await import('../../package.json');
+      this.version = packageJson.version;
+    } catch (error) {
+      console.error('Failed to load version from package.json:', error);
+      this.version = 'unknown';
+    }
 
     // Clean any existing code blocks to ensure no backticks are displayed
     this.sanitizeAllCodeBlocks();
