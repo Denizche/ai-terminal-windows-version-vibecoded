@@ -96,7 +96,7 @@ fn get_shell_path() -> Option<String> {
     };
 
     let output = Command::new(shell)
-        .arg("-l")  // Login shell to get proper environment
+        .arg("-l") // Login shell to get proper environment
         .arg("-c")
         .arg(command)
         .output()
@@ -218,7 +218,7 @@ fn execute_command(
 
     // Get the current environment variables
     let mut env_vars: Vec<(String, String)> = std::env::vars().collect();
-    
+
     // Add or update PATH if it doesn't exist
     if !env_vars.iter().any(|(key, _)| key == "PATH") {
         if let Some(path) = get_shell_path() {
@@ -385,7 +385,10 @@ fn execute_sudo_command(
     if let Some(mut stdin) = child_arc.lock().unwrap().stdin.take() {
         let app_handle_stdin = app_handle.clone();
         thread::spawn(move || {
-            if stdin.write_all(format!("{}\n", password).as_bytes()).is_err() {
+            if stdin
+                .write_all(format!("{}\n", password).as_bytes())
+                .is_err()
+            {
                 let _ = app_handle_stdin.emit("command_error", "Failed to send password to sudo");
                 return;
             }
@@ -553,7 +556,6 @@ fn autocomplete(
 
             let mut matches = Vec::new();
             for entry in entries.flatten() {
-
                 let file_name = entry.file_name();
                 let file_name_str = file_name.to_string_lossy();
 
@@ -919,7 +921,7 @@ fn get_git_branch(command_manager: State<'_, CommandManager>) -> Result<String, 
 fn get_current_pid(command_manager: State<'_, CommandManager>) -> Result<u32, String> {
     let states = command_manager.commands.lock().map_err(|e| e.to_string())?;
     let key = "default_state".to_string();
-    
+
     if let Some(state) = states.get(&key) {
         Ok(state.pid.unwrap_or(0))
     } else {
@@ -931,7 +933,7 @@ fn get_current_pid(command_manager: State<'_, CommandManager>) -> Result<u32, St
 fn terminate_command(command_manager: State<'_, CommandManager>) -> Result<(), String> {
     let mut states = command_manager.commands.lock().map_err(|e| e.to_string())?;
     let key = "default_state".to_string();
-    
+
     let pid = if let Some(state) = states.get(&key) {
         state.pid.unwrap_or(0)
     } else {
@@ -963,8 +965,8 @@ fn terminate_command(command_manager: State<'_, CommandManager>) -> Result<(), S
 
     #[cfg(windows)]
     {
-        use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
         use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
 
         unsafe {
             let handle = OpenProcess(PROCESS_TERMINATE, false, pid);
@@ -994,6 +996,7 @@ fn main() {
     let command_manager = CommandManager::new();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .setup(|_app| {
             // Add any setup logic here
             Ok(())
