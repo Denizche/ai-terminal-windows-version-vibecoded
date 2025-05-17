@@ -83,7 +83,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Homebrew Formula and Cask
-        if: github.event_name == 'release' && github.event.action == 'published'
         env:
           HOMEBREW_TAP_REPO: AiTerminalFoundation/homebrew-ai-terminal
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
