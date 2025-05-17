@@ -1,6 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+extern crate fix_path_env;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -991,7 +993,15 @@ fn terminate_command(command_manager: State<'_, CommandManager>) -> Result<(), S
     Ok(())
 }
 
+// Add a new command to get all system environment variables
+#[tauri::command]
+fn get_system_env() -> Result<Vec<(String, String)>, String> {
+    let env_vars: Vec<(String, String)> = std::env::vars().collect();
+    Ok(env_vars)
+}
+
 fn main() {
+    let _ = fix_path_env::fix();
     // Create a new command manager
     let command_manager = CommandManager::new();
 
@@ -1016,7 +1026,8 @@ fn main() {
             switch_model,
             get_host,
             set_host,
-            get_git_branch
+            get_git_branch,
+            get_system_env
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
