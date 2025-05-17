@@ -71,10 +71,38 @@ impl CommandManager {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct CommandResponse {
-    pid: u32,
-    message: String,
+fn get_shell_path() -> Option<String> {
+    // First try to get the user's default shell
+    let shell = if cfg!(target_os = "windows") {
+        "cmd"
+    } else {
+        // Try to get the user's default shell from /etc/shells or fallback to common shells
+        let shells = ["/bin/zsh", "/bin/bash", "/bin/sh"];
+        for shell in shells.iter() {
+            if std::path::Path::new(shell).exists() {
+                return Some(shell.to_string());
+            }
+        }
+        "sh" // Fallback
+    };
+
+    // Try to get PATH using the shell's login mode
+    let output = Command::new(shell)
+        .arg("-l")  // Login shell to get proper environment
+        .arg("-c")
+        .arg("echo $PATH")
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() {
+            return Some(path);
+        }
+    }
+
+    // If shell method fails, try to get PATH from environment
+    std::env::var("PATH").ok()
 }
 
 #[command]
@@ -180,6 +208,16 @@ fn execute_command(
     let command_clone = command.clone();
     let app_handle_clone = app_handle.clone();
 
+    // Get the current environment variables
+    let mut env_vars: Vec<(String, String)> = std::env::vars().collect();
+    
+    // Add or update PATH if it doesn't exist
+    if !env_vars.iter().any(|(key, _)| key == "PATH") {
+        if let Some(path) = get_shell_path() {
+            env_vars.push(("PATH".to_string(), path));
+        }
+    }
+
     // Return immediately with initial message
     let child = match Command::new("sh")
         .arg("-c")
@@ -192,6 +230,7 @@ fn execute_command(
             format!("exec {}", &command_clone)
         })
         .current_dir(&current_dir)
+        .envs(env_vars) // Set all environment variables
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::piped()) // Ensure stdin is piped for password input
