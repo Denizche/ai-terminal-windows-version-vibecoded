@@ -86,11 +86,19 @@ fn get_shell_path() -> Option<String> {
         "sh" // Fallback
     };
 
-    // Try to get PATH using the shell's login mode
+    // Try to get PATH using the shell's login mode and sourcing initialization files
+    let command = if shell.contains("zsh") {
+        "source ~/.zshrc 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; echo $PATH"
+    } else if shell.contains("bash") {
+        "source ~/.bashrc 2>/dev/null || true; source ~/.bash_profile 2>/dev/null || true; echo $PATH"
+    } else {
+        "echo $PATH"
+    };
+
     let output = Command::new(shell)
         .arg("-l")  // Login shell to get proper environment
         .arg("-c")
-        .arg("echo $PATH")
+        .arg(command)
         .output()
         .ok()?;
 
