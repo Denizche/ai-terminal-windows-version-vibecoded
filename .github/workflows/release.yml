@@ -67,6 +67,7 @@ jobs:
           cd ai-terminal
           VERSION=$(node -p "require('./package.json').version")
           echo "RELEASE_TAG=v${VERSION}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Create and push tag
         run: |
@@ -91,19 +92,18 @@ jobs:
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/AiTerminalFoundation/homebrew-ai-terminal.git homebrew-tap
           cd homebrew-tap
 
-          # Set version variables
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION_NUMBER="${VERSION#v}"
-          DMG_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/${VERSION}/ai-terminal-${VERSION_NUMBER}.dmg"
+          # Use the version from the environment
+          VERSION="${{ env.RELEASE_VERSION }}"
+          DMG_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v${VERSION}/ai-terminal-${VERSION}.dmg"
           SHA256=$(curl -sL "${DMG_URL}" | shasum -a 256 | awk '{print $1}')
 
           # Update Formula/ai-terminal.rb
-          sed -i '' "s/version \".*\"/version \"${VERSION_NUMBER}\"/" Formula/ai-terminal.rb
+          sed -i '' "s/version \".*\"/version \"${VERSION}\"/" Formula/ai-terminal.rb
           sed -i '' "s|url \".*\"|url \"${DMG_URL}\"|" Formula/ai-terminal.rb
           sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/ai-terminal.rb
 
           # Update Casks/ai-terminal.rb
-          sed -i '' "s/version \".*\"/version \"${VERSION_NUMBER}\"/" Casks/ai-terminal.rb
+          sed -i '' "s/version \".*\"/version \"${VERSION}\"/" Casks/ai-terminal.rb
           sed -i '' "s|url \".*\"|url \"${DMG_URL}\"|" Casks/ai-terminal.rb
           sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/ai-terminal.rb
 
@@ -111,5 +111,5 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add Formula/ai-terminal.rb Casks/ai-terminal.rb
-          git commit -m "Update ai-terminal to ${VERSION}"
+          git commit -m "Update ai-terminal to v${VERSION}"
           git push
