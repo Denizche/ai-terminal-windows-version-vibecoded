@@ -63,6 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      matrix:
+        architecture: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
 
@@ -88,18 +91,29 @@ jobs:
           fi
           sudo apt-get install -y build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
+      - name: Setup cross-compilation for ARM
+        if: matrix.architecture == 'aarch64'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - name: Build Linux DEB
         run: |
           cd ai-terminal
-          npm run tauri build
+          if [ "${{ matrix.architecture }}" = "aarch64" ]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+            npm run tauri build -- --target aarch64-unknown-linux-gnu
+          else
+            npm run tauri build
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-deb
-          path: ai-terminal/src-tauri/target/release/bundle/deb/*.deb
+          name: linux-deb-${{ matrix.architecture }}
+          path: ai-terminal/src-tauri/target/${{ matrix.architecture == 'aarch64' && 'aarch64-unknown-linux-gnu' || 'release' }}/bundle/deb/*.deb
 
   release:
     needs: [build-macos, build-linux]
@@ -118,7 +132,7 @@ jobs:
       - name: Download Linux Artifact
         uses: actions/download-artifact@v4
         with:
-          name: linux-deb
+          name: linux-deb-*
           path: artifacts/linux
 
       - name: Generate tag
@@ -155,7 +169,8 @@ jobs:
           # Update versions.js with new version info
           VERSION="${{ env.RELEASE_VERSION }}"
           DMG_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v${VERSION}/ai-terminal-${VERSION}.dmg"
-          DEB_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v${VERSION}/ai-terminal_${VERSION}_amd64.deb"
+          DEB_X86_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v${VERSION}/ai-terminal_${VERSION}_amd64.deb"
+          DEB_ARM_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v${VERSION}/ai-terminal_${VERSION}_arm64.deb"
           
           # Create a temporary file with the updated content
           cat > versions.js << EOL
@@ -171,7 +186,8 @@ jobs:
               },
               linux: {
                   version: '${VERSION}',
-                  downloadUrl: '${DEB_URL}'
+                  downloadUrl: '${DEB_X86_URL}',
+                  arm64DownloadUrl: '${DEB_ARM_URL}'
               }
           };
           EOL
@@ -198,14 +214,16 @@ jobs:
           SHA256=$(curl -sL "${DMG_URL}" | shasum -a 256 | awk '{print $1}')
 
           # Update Formula/ai-terminal.rb
-          sed -i '' "s/version \".*\"/version \"${VERSION}\"/" Formula/ai-terminal.rb
-          sed -i '' "s|url \".*\"|url \"${DMG_URL}\"|" Formula/ai-terminal.rb
-          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/ai-terminal.rb
+          sed -i.bak "s/version \".*\"/version \"${VERSION}\"/" Formula/ai-terminal.rb
+          sed -i.bak "s|url \".*\"|url \"${DMG_URL}\"|" Formula/ai-terminal.rb
+          sed -i.bak "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/ai-terminal.rb
+          rm Formula/ai-terminal.rb.bak
 
           # Update Casks/ai-terminal.rb
-          sed -i '' "s/version \".*\"/version \"${VERSION}\"/" Casks/ai-terminal.rb
-          sed -i '' "s|url \".*\"|url \"${DMG_URL}\"|" Casks/ai-terminal.rb
-          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/ai-terminal.rb
+          sed -i.bak "s/version \".*\"/version \"${VERSION}\"/" Casks/ai-terminal.rb
+          sed -i.bak "s|url \".*\"|url \"${DMG_URL}\"|" Casks/ai-terminal.rb
+          sed -i.bak "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/ai-terminal.rb
+          rm Casks/ai-terminal.rb.bak
 
           # Commit and push changes
           git config user.name "GitHub Actions"
