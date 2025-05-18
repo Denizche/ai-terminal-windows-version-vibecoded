@@ -98,8 +98,9 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
           
-          # Install ARM sysroot
+          # Install ARM sysroot and OpenSSL development headers
           sudo apt-get install -y crossbuild-essential-arm64
+          sudo apt-get install -y libssl-dev:arm64
           
           # Configure pkg-config for cross-compilation
           echo "export PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
@@ -107,6 +108,11 @@ jobs:
           echo "export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
           echo "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER=qemu-aarch64" >> $GITHUB_ENV
+          
+          # Set OpenSSL environment variables for cross-compilation
+          echo "export OPENSSL_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
+          echo "export OPENSSL_INCLUDE_DIR=/usr/aarch64-linux-gnu/include" >> $GITHUB_ENV
+          echo "export OPENSSL_LIB_DIR=/usr/aarch64-linux-gnu/lib" >> $GITHUB_ENV
           
           # Install QEMU for ARM emulation
           sudo apt-get install -y qemu-user-static
@@ -119,6 +125,9 @@ jobs:
             export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
             export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu
             export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+            export OPENSSL_DIR=/usr/aarch64-linux-gnu
+            export OPENSSL_INCLUDE_DIR=/usr/aarch64-linux-gnu/include
+            export OPENSSL_LIB_DIR=/usr/aarch64-linux-gnu/lib
             npm run tauri build -- --target aarch64-unknown-linux-gnu
           else
             npm run tauri build
