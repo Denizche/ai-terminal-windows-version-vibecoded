@@ -89,60 +89,19 @@ jobs:
           if ! sudo apt-get install -y libwebkit2gtk-4.1-dev; then
             sudo apt-get install -y libwebkit2gtk-4.0-dev
           fi
-          sudo apt-get install -y build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
-
-      - name: Setup cross-compilation for ARM
-        if: matrix.architecture == 'aarch64'
-        run: |
-          # Install cross-compilation tools
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          rustup target add aarch64-unknown-linux-gnu
-          
-          # Install ARM sysroot and OpenSSL development headers
-          sudo apt-get install -y crossbuild-essential-arm64
-          sudo apt-get install -y libssl-dev
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev:arm64
-          
-          # Configure pkg-config for cross-compilation
-          echo "export PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-          echo "export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-          echo "export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
-          echo "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER=qemu-aarch64" >> $GITHUB_ENV
-          
-          # Set OpenSSL environment variables for cross-compilation
-          echo "export OPENSSL_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
-          echo "export OPENSSL_INCLUDE_DIR=/usr/aarch64-linux-gnu/include" >> $GITHUB_ENV
-          echo "export OPENSSL_LIB_DIR=/usr/aarch64-linux-gnu/lib" >> $GITHUB_ENV
-          
-          # Install QEMU for ARM emulation
-          sudo apt-get install -y qemu-user-static
+          sudo apt-get install -y build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-devnux-gnu     
 
       - name: Build Linux DEB
         run: |
           cd ai-terminal
-          if [ "${{ matrix.architecture }}" = "aarch64" ]; then
-            export PKG_CONFIG_ALLOW_CROSS=1
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-            export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-            export OPENSSL_DIR=/usr/aarch64-linux-gnu
-            export OPENSSL_INCLUDE_DIR=/usr/aarch64-linux-gnu/include
-            export OPENSSL_LIB_DIR=/usr/aarch64-linux-gnu/lib
-            npm run tauri build -- --target aarch64-unknown-linux-gnu
-          else
-            npm run tauri build
-          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-deb-${{ matrix.architecture }}
-          path: ai-terminal/src-tauri/target/${{ matrix.architecture == 'aarch64' && 'aarch64-unknown-linux-gnu' || 'release' }}/bundle/deb/*.deb
+          name: linux-deb
+          path: ai-terminal/src-tauri/target/release/bundle/deb/*.deb
 
   release:
     needs: [build-macos, build-linux]
@@ -161,7 +120,7 @@ jobs:
       - name: Download Linux Artifact
         uses: actions/download-artifact@v4
         with:
-          name: linux-deb-*
+          name: linux-deb
           path: artifacts/linux
 
       - name: Generate tag
