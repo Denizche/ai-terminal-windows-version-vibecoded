@@ -65,7 +65,7 @@ jobs:
       contents: write
     strategy:
       matrix:
-        architecture: [x86_64, aarch64]
+        architecture: [x86_64] # , aarch64]  # Temporarily disabled ARM builds
     steps:
       - uses: actions/checkout@v4
 
