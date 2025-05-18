@@ -457,7 +457,6 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
     const currentCommand = this.commandHistory[this.commandHistory.length - 1];
     // Update UI immediately to show we're handling the termination
-    currentCommand.output.push("\n^C - Terminating process...");
     currentCommand.isComplete = true;
     currentCommand.isStreaming = false;
     currentCommand.success = false;
