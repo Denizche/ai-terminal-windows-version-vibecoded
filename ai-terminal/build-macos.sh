@@ -101,13 +101,5 @@ xcrun stapler staple "$DMG_PATH"
 # Calculate SHA256 for Homebrew
 SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
 
-echo "Updating Homebrew formula..."
-sed -i '' "s/version \".*\"/version \"$VERSION\"/" ai-terminal.rb
-sed -i '' "s|url \".*\"|url \"https://github.com/AiTerminalFoundations/ai-terminal/releases/download/v$VERSION/ai-terminal-$VERSION.dmg\"|" ai-terminal.rb
-sed -i '' "s/sha256 \".*\"/sha256 \"$SHA256\"/" ai-terminal.rb
-
 echo "✅ Build complete! DMG is available at: $DMG_PATH"
 echo "✅ SHA256: $SHA256"
-echo "✅ Homebrew formula updated in ai-terminal.rb"
-echo
-echo "To release, upload the DMG to GitHub releases and then update the Homebrew tap with the updated formula." 
