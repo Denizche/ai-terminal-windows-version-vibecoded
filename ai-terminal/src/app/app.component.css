@@ -652,14 +652,6 @@ button {
   opacity: 0.8;
 }
 
-.streaming-indicator {
-  color: #50fa7b;
-  font-style: italic;
-  animation: pulse 1.5s infinite;
-  padding-left: 8px;
-  margin-top: 4px;
-}
-
 @keyframes pulse {
   0% {
     opacity: 0.5;
