@@ -94,6 +94,7 @@ jobs:
       - name: Build Linux DEB
         run: |
           cd ai-terminal
+          npm run tauri build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
