@@ -6,14 +6,10 @@ on:
       - "master"
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  build-macos:
+    runs-on: macos-latest
     permissions:
       contents: write
-    strategy:
-      matrix:
-        os: [macos-latest]
-
     steps:
       - uses: actions/checkout@v4
 
@@ -25,8 +21,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install create-dmg (macOS only)
-        if: matrix.os == 'macos-latest'
+      - name: Install create-dmg
         run: brew install create-dmg
 
       - name: Install dependencies
@@ -35,22 +30,18 @@ jobs:
           npm ci
 
       - name: Import Code-Signing Certificates
-        if: matrix.os == 'macos-latest'
         uses: apple-actions/import-codesign-certs@v1
         with:
           p12-file-base64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
           p12-password: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
 
-      # Create a temporary file with the Apple API key
       - name: Prepare Apple API Key
-        if: matrix.os == 'macos-latest'
         run: |
           echo "${{ secrets.APPLE_API_KEY }}" > /tmp/apple_api_key.p8
           chmod 600 /tmp/apple_api_key.p8
           echo "APPLE_API_KEY=/tmp/apple_api_key.p8" >> $GITHUB_ENV
 
       - name: Build macOS Universal
-        if: matrix.os == 'macos-latest'
         run: |
           cd ai-terminal
           chmod +x build-macos.sh
@@ -61,6 +52,71 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: ai-terminal/src-tauri/target/universal-apple-darwin/bundle/dmg/*.dmg
+
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          cd ai-terminal
+          npm ci
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Build Linux DEB
+        run: |
+          cd ai-terminal
+          chmod +x build-linux.sh
+          ./build-linux.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: ai-terminal/src-tauri/target/release/bundle/deb/*.deb
+
+  release:
+    needs: [build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download macOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: artifacts/macos
+
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-deb
+          path: artifacts/linux
 
       - name: Generate tag
         run: |
@@ -79,7 +135,8 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: |
-            ai-terminal/src-tauri/target/universal-apple-darwin/bundle/dmg/*.dmg
+            artifacts/macos/*.dmg
+            artifacts/linux/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -95,6 +152,7 @@ jobs:
           # Update versions.js with new version info
           VERSION="${{ env.RELEASE_VERSION }}"
           DMG_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v${VERSION}/ai-terminal-${VERSION}.dmg"
+          DEB_URL="https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v${VERSION}/ai-terminal_${VERSION}_amd64.deb"
           
           # Create a temporary file with the updated content
           cat > versions.js << EOL
@@ -110,7 +168,7 @@ jobs:
               },
               linux: {
                   version: '${VERSION}',
-                  downloadUrl: 'https://github.com/AiTerminalFoundation/ai-terminal/releases/download/v0.2.0/ai-terminal_0.2.0_amd64.deb'
+                  downloadUrl: '${DEB_URL}'
               }
           };
           EOL
