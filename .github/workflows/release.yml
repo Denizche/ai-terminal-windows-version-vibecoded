@@ -92,6 +92,9 @@ jobs:
         run: |
           cd ai-terminal
           npm run tauri build
+          # Move the DEB file to the expected location
+          mkdir -p artifacts/linux
+          cp src-tauri/target/release/bundle/deb/*.deb artifacts/linux/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
