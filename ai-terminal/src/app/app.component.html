@@ -24,11 +24,6 @@
               </span>
             </div>
             <div class="command-output">
-              <!-- Simple processing indicator -->
-              <div class="processing-indicator" *ngIf="!entry.isComplete">
-                <span *ngIf="entry.isStreaming">⟳ streaming...</span>
-                <span *ngIf="!entry.isStreaming">⧗ processing...</span>
-              </div>
 
               <!-- Output content - show always -->
               <ng-container *ngFor="let line of entry.output">
