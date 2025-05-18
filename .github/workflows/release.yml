@@ -94,13 +94,30 @@ jobs:
       - name: Setup cross-compilation for ARM
         if: matrix.architecture == 'aarch64'
         run: |
+          # Install cross-compilation tools
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          
+          # Install ARM sysroot
+          sudo apt-get install -y crossbuild-essential-arm64
+          
+          # Configure pkg-config for cross-compilation
+          echo "export PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+          echo "export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
+          echo "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER=qemu-aarch64" >> $GITHUB_ENV
+          
+          # Install QEMU for ARM emulation
+          sudo apt-get install -y qemu-user-static
 
       - name: Build Linux DEB
         run: |
           cd ai-terminal
           if [ "${{ matrix.architecture }}" = "aarch64" ]; then
+            export PKG_CONFIG_ALLOW_CROSS=1
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+            export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu
             export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
             npm run tauri build -- --target aarch64-unknown-linux-gnu
           else
