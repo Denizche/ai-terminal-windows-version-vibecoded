@@ -100,6 +100,9 @@ jobs:
           
           # Install ARM sysroot and OpenSSL development headers
           sudo apt-get install -y crossbuild-essential-arm64
+          sudo apt-get install -y libssl-dev
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
           sudo apt-get install -y libssl-dev:arm64
           
           # Configure pkg-config for cross-compilation
