@@ -373,7 +373,9 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
         }
       } else {
         // SSH session: path is remote, display as is. Clear local git branch.
-        this.currentWorkingDirectory = result.trim();
+        // Get the SSH host information
+        const sshHost = await invoke<string>("get_ssh_host");
+        this.currentWorkingDirectory = `[${sshHost}] ${result.trim()}`;
         this.gitBranch = '';
       }
 
