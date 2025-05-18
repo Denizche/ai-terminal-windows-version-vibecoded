@@ -260,16 +260,8 @@ fn execute_command(
                 let _ = app_handle.emit("ssh_session_ended", serde_json::json!({ "pid": active_pid_for_log, "reason": "SSH session inconsistency: active but no stdin."}));
                 return Err("SSH session conflict: active but no stdin. Please retry.".to_string());
             }
-        } else if command.trim().starts_with("ssh ") {
-            // Extract host from SSH command
-            let parts: Vec<&str> = command.trim().split_whitespace().collect();
-            let host = parts.get(1).unwrap_or(&"unknown");
-            
-            // Store the host information in the remote directory
-            state.remote_current_dir = Some(format!("/{}", host));
-            state.is_ssh_session_active = true;
-            
-            // ... rest of the SSH connection code ...
+        } else {
+            println!("[Rust EXEC DEBUG] Phase 1: Finished SSH check.");
         }
     }
 
@@ -1514,28 +1506,6 @@ fn get_system_env() -> Result<Vec<(String, String)>, String> {
     Ok(env_vars)
 }
 
-#[command]
-fn get_ssh_host(command_manager: State<'_, CommandManager>) -> Result<String, String> {
-    let states = command_manager.commands.lock().map_err(|e| e.to_string())?;
-    let state = states.get("default_state").ok_or("No command state found")?;
-    
-    if !state.is_ssh_session_active {
-        return Ok("local".to_string());
-    }
-
-    // Extract host from the current directory if it's a remote path
-    if let Some(remote_dir) = &state.remote_current_dir {
-        // Try to extract host from the remote directory path
-        // This assumes the remote directory path contains the host information
-        // You might need to adjust this based on your actual path format
-        if let Some(host) = remote_dir.split('/').nth(1) {
-            return Ok(host.to_string());
-        }
-    }
-
-    Ok("remote".to_string())
-}
-
 fn main() {
     let _ = fix_path_env::fix();
     // Create a new command manager
@@ -1564,7 +1534,6 @@ fn main() {
             set_host,
             get_git_branch,
             get_system_env,
-            get_ssh_host,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
