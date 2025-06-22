@@ -119,6 +119,10 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   showBranchSelector: boolean = false;
   gitBranches: string[] = [];
 
+  // Commit popup
+  showCommitPopup: boolean = false;
+  commitMessage: string = '';
+
   // Constants for SSH interaction
   readonly SSH_NEEDS_PASSWORD_MARKER = "SSH_INTERACTIVE_PASSWORD_PROMPT_REQUESTED";
   readonly SSH_PRE_EXEC_PASSWORD_EVENT = "ssh_pre_exec_password_request";
@@ -162,6 +166,73 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     } catch (error) {
       console.error('Failed to fetch git branches:', error);
       this.gitBranches = []; // Clear branches on error
+    }
+  }
+
+  async fetchAndPull(): Promise<void> {
+    try {
+      this.isProcessing = true;
+      const result = await invoke<string>('git_fetch_and_pull', { sessionId: this.activeSessionId });
+      this.commandHistory.push({
+        command: 'git fetch && git pull',
+        output: [result],
+        timestamp: new Date(),
+        isComplete: true,
+        success: true
+      });
+    } catch (error) {
+      this.commandHistory.push({
+        command: 'git fetch && git pull',
+        output: [error as string],
+        timestamp: new Date(),
+        isComplete: true,
+        success: false
+      });
+    } finally {
+      this.isProcessing = false;
+      this.shouldScroll = true;
+    }
+  }
+
+  commitAndPush(): void {
+    this.commitMessage = '';
+    this.showCommitPopup = true;
+  }
+
+  cancelCommit(): void {
+    this.showCommitPopup = false;
+    this.commitMessage = '';
+  }
+
+  async submitCommit(): Promise<void> {
+    if (!this.commitMessage.trim()) {
+      return;
+    }
+    this.showCommitPopup = false;
+    const message = this.commitMessage;
+
+    try {
+      this.isProcessing = true;
+      const result = await invoke<string>('git_commit_and_push', { sessionId: this.activeSessionId, message });
+      this.commandHistory.push({
+        command: `git commit -m "${message}" && git push`,
+        output: [result],
+        timestamp: new Date(),
+        isComplete: true,
+        success: true
+      });
+    } catch (error) {
+      this.commandHistory.push({
+        command: `git commit -m "${message}" && git push`,
+        output: [error as string],
+        timestamp: new Date(),
+        isComplete: true,
+        success: false
+      });
+    } finally {
+      this.isProcessing = false;
+      this.shouldScroll = true;
+      this.commitMessage = '';
     }
   }
 

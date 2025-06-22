@@ -1631,6 +1631,91 @@ fn get_system_env() -> Result<Vec<(String, String)>, String> {
     Ok(env_vars)
 }
 
+#[tauri::command]
+fn git_fetch_and_pull(
+    session_id: String,
+    command_manager: State<'_, CommandManager>,
+) -> Result<String, String> {
+    let mut command_manager_guard = command_manager.commands.lock().unwrap();
+    let command_state = command_manager_guard
+        .get_mut(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    let mut fetch_cmd = new_git_command();
+    fetch_cmd.current_dir(&command_state.current_dir);
+    fetch_cmd.arg("fetch");
+
+    let fetch_output = fetch_cmd.output().map_err(|e| e.to_string())?;
+    if !fetch_output.status.success() {
+        return Err(String::from_utf8_lossy(&fetch_output.stderr).to_string());
+    }
+
+    let mut pull_cmd = new_git_command();
+    pull_cmd.current_dir(&command_state.current_dir);
+    pull_cmd.arg("pull");
+
+    let pull_output = pull_cmd.output().map_err(|e| e.to_string())?;
+    if !pull_output.status.success() {
+        return Err(String::from_utf8_lossy(&pull_output.stderr).to_string());
+    }
+
+    let mut output = String::new();
+    output.push_str("Fetch output:\\n");
+    output.push_str(&String::from_utf8_lossy(&fetch_output.stdout));
+    output.push_str(&String::from_utf8_lossy(&fetch_output.stderr));
+    output.push_str("\\nPull output:\\n");
+    output.push_str(&String::from_utf8_lossy(&pull_output.stdout));
+    output.push_str(&String::from_utf8_lossy(&pull_output.stderr));
+
+    Ok(output)
+}
+
+#[tauri::command]
+fn git_commit_and_push(
+    session_id: String,
+    message: String,
+    command_manager: State<'_, CommandManager>,
+) -> Result<String, String> {
+    let mut command_manager_guard = command_manager.commands.lock().unwrap();
+    let command_state = command_manager_guard
+        .get_mut(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    let mut add_cmd = new_git_command();
+    add_cmd.current_dir(&command_state.current_dir);
+    add_cmd.arg("add").arg(".");
+    let add_output = add_cmd.output().map_err(|e| e.to_string())?;
+    if !add_output.status.success() {
+        return Err(String::from_utf8_lossy(&add_output.stderr).to_string());
+    }
+
+    let mut commit_cmd = new_git_command();
+    commit_cmd.current_dir(&command_state.current_dir);
+    commit_cmd.arg("commit").arg("-m").arg(&message);
+    let commit_output = commit_cmd.output().map_err(|e| e.to_string())?;
+    if !commit_output.status.success() {
+        return Err(String::from_utf8_lossy(&commit_output.stderr).to_string());
+    }
+
+    let mut push_cmd = new_git_command();
+    push_cmd.current_dir(&command_state.current_dir);
+    push_cmd.arg("push");
+    let push_output = push_cmd.output().map_err(|e| e.to_string())?;
+    if !push_output.status.success() {
+        return Err(String::from_utf8_lossy(&push_output.stderr).to_string());
+    }
+
+    let mut output = String::new();
+    output.push_str("Commit output:\\n");
+    output.push_str(&String::from_utf8_lossy(&commit_output.stdout));
+    output.push_str(&String::from_utf8_lossy(&commit_output.stderr));
+    output.push_str("\\nPush output:\\n");
+    output.push_str(&String::from_utf8_lossy(&push_output.stdout));
+    output.push_str(&String::from_utf8_lossy(&push_output.stderr));
+
+    Ok(output)
+}
+
 fn main() {
     let _ = fix_path_env::fix();
     // Create a new command manager
@@ -1661,6 +1746,8 @@ fn main() {
             get_git_branches,
             switch_branch,
             get_system_env,
+            git_fetch_and_pull,
+            git_commit_and_push,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
