@@ -1,6 +1,3 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
 extern crate fix_path_env;
 
 use serde::{Deserialize, Serialize};
@@ -15,80 +12,12 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{command, AppHandle, Emitter, Manager, State};
-
-// Define Ollama API models and structures
-#[derive(Debug, Serialize, Deserialize)]
-struct OllamaRequest {
-    model: String,
-    prompt: String,
-    stream: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct OllamaResponse {
-    model: String,
-    response: String,
-    done: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct OllamaModel {
-    name: String,
-    size: u64,
-    modified_at: String,
-    // Add other fields as needed
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct OllamaModelList {
-    models: Vec<OllamaModel>,
-}
-
-// Store the current working directory for each command
-struct CommandState {
-    current_dir: String,
-    child_wait_handle: Option<Arc<Mutex<Child>>>, // For wait() and kill()
-    child_stdin: Option<Arc<Mutex<std::process::ChildStdin>>>, // For writing
-    pid: Option<u32>,
-    is_ssh_session_active: bool, // Added for persistent SSH
-    remote_current_dir: Option<String>, // New field for remote SSH path
-}
-
-// Add Ollama state management
-struct OllamaState {
-    current_model: String,
-    api_host: String,
-}
-
-// Structure to handle command output streaming
-struct CommandManager {
-    commands: Mutex<HashMap<String, CommandState>>,
-    ollama: Mutex<OllamaState>,
-}
-
-impl CommandManager {
-    fn new() -> Self {
-        let mut initial_commands = HashMap::new();
-        initial_commands.insert(
-            "default_state".to_string(),
-            CommandState {
-                current_dir: env::current_dir().unwrap_or_default().to_string_lossy().to_string(),
-                child_wait_handle: None,
-                child_stdin: None,
-                pid: None,
-                is_ssh_session_active: false, // Initialize here
-                remote_current_dir: None, // Initialize new field
-            },
-        );
-        CommandManager {
-            commands: Mutex::new(initial_commands),
-            ollama: Mutex::new(OllamaState {
-                current_model: "llama3.2:latest".to_string(), // Default model will now be overridden by frontend
-                api_host: "http://localhost:11434".to_string(), // Default Ollama host
-            }),
-        }
-    }
-}
+use ai_terminal_lib::command::types::command_manager::CommandManager;
+use ai_terminal_lib::command::types::command_state::CommandState;
+use ai_terminal_lib::ollama::types::ollama_model_list::OllamaModelList;
+use ai_terminal_lib::ollama::types::ollama_request::OllamaRequest;
+use ai_terminal_lib::ollama::types::ollama_response::OllamaResponse;
+use ai_terminal_lib::ollama::types::ollama_state::OllamaState;
 
 fn get_shell_path() -> Option<String> {
     // First try to get the user's default shell
