@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::ollama::types::ollama_model::OllamaModel;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OllamaModelList {

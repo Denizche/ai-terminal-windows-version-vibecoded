@@ -1,8 +1,8 @@
+use crate::command::types::command_state::CommandState;
+use crate::ollama::types::ollama_state::OllamaState;
 use std::collections::HashMap;
 use std::env;
 use std::sync::Mutex;
-use crate::command::types::command_state::CommandState;
-use crate::ollama::types::ollama_state::OllamaState;
 
 // Structure to handle command output streaming
 pub struct CommandManager {
@@ -16,12 +16,15 @@ impl CommandManager {
         initial_commands.insert(
             "default_state".to_string(),
             CommandState {
-                current_dir: env::current_dir().unwrap_or_default().to_string_lossy().to_string(),
+                current_dir: env::current_dir()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string(),
                 child_wait_handle: None,
                 child_stdin: None,
                 pid: None,
                 is_ssh_session_active: false, // Initialize here
-                remote_current_dir: None, // Initialize new field
+                remote_current_dir: None,     // Initialize new field
             },
         );
         CommandManager {
