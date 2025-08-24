@@ -154,26 +154,13 @@ pub fn execute_command(
         // This block is the original 'cd' handling logic.
         // It will lock `command_manager.commands` internally.
         let mut states_guard_cd = command_manager.commands.lock().map_err(|e| e.to_string())?;
-        let key_cd = session_id.clone();
-        let state_cd = states_guard_cd
-            .entry(key_cd.clone())
-            .or_insert_with(|| CommandState {
-                current_dir: env::current_dir()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string(),
-                child_wait_handle: None,
-                child_stdin: None,
-                pid: None,
-                is_ssh_session_active: false, // ensure default
-                remote_current_dir: None,
-            });
+        let mut command_state_cd = get_command_state(&mut states_guard_cd, session_id.clone());
 
         let path = command.trim_start_matches("cd").trim();
         if path.is_empty() || path == "~" || path == "~/" {
             return if let Some(home_dir) = dirs::home_dir() {
                 let home_path = home_dir.to_string_lossy().to_string();
-                state_cd.current_dir = home_path.clone();
+                command_state_cd.current_dir = home_path.clone();
                 drop(states_guard_cd); // Release lock before emitting and returning
                 let _ = app_handle.emit("command_end", "Command completed successfully.");
                 Ok(format!("Changed directory to {}", home_path))
@@ -183,7 +170,7 @@ pub fn execute_command(
                 Err("Could not determine home directory".to_string())
             };
         }
-        let current_path = Path::new(&state_cd.current_dir);
+        let current_path = Path::new(&command_state_cd.current_dir);
         let new_path = if path.starts_with('~') {
             if let Some(home_dir) = dirs::home_dir() {
                 let without_tilde = path.trim_start_matches('~');
@@ -218,8 +205,8 @@ pub fn execute_command(
             result_path
         };
         return if new_path.exists() {
-            state_cd.current_dir = new_path.to_string_lossy().to_string();
-            let current_dir_for_ok = state_cd.current_dir.clone();
+            command_state_cd.current_dir = new_path.to_string_lossy().to_string();
+            let current_dir_for_ok = command_state_cd.current_dir.clone();
             drop(states_guard_cd);
             let _ = app_handle.emit("command_end", "Command completed successfully.");
             Ok(format!("Changed directory to {}", current_dir_for_ok))
@@ -421,18 +408,7 @@ pub fn execute_command(
 
     {
         let mut states_guard_update = command_manager.commands.lock().map_err(|e| e.to_string())?;
-        let key_update = session_id.clone();
-        let state_to_update =
-            states_guard_update
-                .entry(key_update)
-                .or_insert_with(|| CommandState {
-                    current_dir: current_dir_clone.clone(),
-                    child_wait_handle: None,
-                    child_stdin: None,
-                    pid: None,
-                    is_ssh_session_active: false,
-                    remote_current_dir: None,
-                });
+        let mut state_to_update = get_command_state(&mut states_guard_update, session_id.clone());
 
         state_to_update.pid = Some(pid);
         state_to_update.child_wait_handle = Some(child_wait_handle_arc.clone()); // Store wait handle
@@ -841,7 +817,7 @@ pub fn execute_sudo_command(
 
     state.child_wait_handle = Some(child_arc.clone()); // Store wait handle
     state.pid = Some(child_pid); // Store PID
-    // For sudo, is_ssh_session_active remains false, child_stdin for SSH is not set.
+                                 // For sudo, is_ssh_session_active remains false, child_stdin for SSH is not set.
 
     // Send password to stdin
     if let Some(stdin_arc) = sudo_stdin {
@@ -939,7 +915,10 @@ pub fn execute_sudo_command(
     Ok("Command started. Output will stream in realtime.".to_string())
 }
 
-fn get_command_state(command_state_guard:  &mut MutexGuard<HashMap<String, CommandState>>, session_id: String) -> CommandState {
+fn get_command_state(
+    command_state_guard: &mut MutexGuard<HashMap<String, CommandState>>,
+    session_id: String,
+) -> CommandState {
     command_state_guard
         .entry(session_id)
         .or_insert_with(|| CommandState {
@@ -952,5 +931,6 @@ fn get_command_state(command_state_guard:  &mut MutexGuard<HashMap<String, Comma
             pid: None,
             is_ssh_session_active: false, // ensure default
             remote_current_dir: None,
-        }).clone()
+        })
+        .clone()
 }
