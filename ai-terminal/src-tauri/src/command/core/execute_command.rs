@@ -63,7 +63,6 @@ pub fn execute_command(
                     let mut stdin_guard = match stdin_arc_for_thread.lock() {
                         Ok(guard) => guard,
                         Err(e) => {
-                            eprintln!("[Rust EXEC DEBUG SSH-Write-Thread] Failed to lock SSH ChildStdin: {}. Resetting SSH state.", e);
                             if let Ok(mut states_lock_in_thread) =
                                 command_manager_state_for_thread.commands.lock()
                             {
@@ -129,7 +128,6 @@ pub fn execute_command(
                                 states_lock_in_thread.get_mut(&session_id_clone_for_thread)
                             {
                                 if s.pid == Some(active_pid_for_log) && s.is_ssh_session_active {
-                                    println!("[Rust EXEC DEBUG SSH-Write-Thread] Resetting SSH active state (stdin, pid:{}) due to write/flush failure.", active_pid_for_log);
                                     s.is_ssh_session_active = false;
                                     s.child_stdin = None;
                                     s.remote_current_dir = None;
@@ -348,21 +346,11 @@ pub fn execute_command(
                     ssh_options_prefix, args_after_ssh_keyword_in_original
                 );
             }
-            println!(
-                "[Rust EXEC] Transformed SSH command for execution: [{}]",
-                command_to_run
-            );
         }
     }
 
     // Now, use the (potentially transformed) command_to_run for direct/sshpass spawning
     if is_potential_ssh_session_starter && !original_command_is_sudo {
-        println!("[Rust EXEC] Preparing to spawn SSH directly (potentially with sshpass). Original user command: [{}]", command);
-        println!(
-            "    Internally prepared base ssh command (command_to_run): [{}]",
-            command_to_run
-        );
-        println!("    Current dir: [{}]", current_dir_clone);
 
         let executable_name: String;
         let mut arguments: Vec<String> = Vec::new();
@@ -373,7 +361,6 @@ pub fn execute_command(
             arguments.push(password_value); // password_value is a String, gets moved here
                                             // command_to_run is the full "ssh -t -t ..." string
             arguments.extend(command_to_run.split_whitespace().map(String::from));
-            println!("    Using sshpass with provided password.");
         } else {
             // No password provided: use plain ssh
             // command_to_run is already "ssh -t -t ..."
@@ -389,7 +376,6 @@ pub fn execute_command(
             }
             executable_name = parts[0].clone(); // Should be "ssh"
             arguments.extend(parts.iter().skip(1).cloned());
-            println!("    Using plain ssh (no password provided to backend, will rely on key auth or agent).");
         }
 
         cmd_to_spawn = Command::new(&executable_name);
@@ -424,24 +410,6 @@ pub fn execute_command(
         } else {
             format!("exec {}", command_to_run)
         };
-
-        println!(
-            "[Rust EXEC] Final shell command for sh -c: [{}]",
-            final_shell_command
-        );
-        println!(
-            "    About to spawn for command: [{}] (Original: {})",
-            command_to_run, command
-        );
-        println!("    Current dir: [{}]", current_dir_clone);
-        println!(
-            "    Plain SSH attempt (via sh -c): {}",
-            is_plain_ssh_attempt
-        );
-        println!(
-            "    Is potential SSH starter (via sh -c): {}",
-            is_potential_ssh_session_starter
-        );
 
         let mut sh_cmd_to_spawn = Command::new("sh");
         sh_cmd_to_spawn
@@ -500,7 +468,6 @@ pub fn execute_command(
             state_to_update.child_stdin = child_stdin_handle; // Store stdin handle for SSH
             state_to_update.is_ssh_session_active = true;
             state_to_update.remote_current_dir = Some("remote:~".to_string()); // Initial placeholder
-            println!("[Rust EXEC] SSH session (pid: {}) marked active.", pid);
             let _ = app_handle_clone.emit("ssh_session_started", serde_json::json!({ "pid": pid }));
 
             // Attempt to send initial PWD command
@@ -528,15 +495,12 @@ pub fn execute_command(
                         initial_pwd_marker, initial_pwd_marker
                     );
 
-                    println!("[Rust EXEC SSH-Init-PWD-Thread] Attempting to send initial PWD command for PID {}: {}", initial_pid_for_init_pwd_error, initial_pwd_command.trim());
-
                     match stdin_arc_for_init_pwd.lock() {
                         Ok(mut stdin_guard) => {
                             if let Err(e) = stdin_guard
                                 .write_all(initial_pwd_command.as_bytes())
                                 .and_then(|_| stdin_guard.flush())
                             {
-                                eprintln!("[Rust EXEC SSH-Init-PWD-Thread] Failed to write/flush initial PWD command for PID {}: {}. Resetting SSH state if still active.", initial_pid_for_init_pwd_error, e);
                                 if let Ok(mut states_lock) =
                                     command_manager_state_for_thread.commands.lock()
                                 {
@@ -554,12 +518,9 @@ pub fn execute_command(
                                         }
                                     }
                                 }
-                            } else {
-                                println!("[Rust EXEC SSH-Init-PWD-Thread] Successfully sent initial PWD command for PID {}.", initial_pid_for_init_pwd_error);
                             }
                         }
                         Err(e) => {
-                            eprintln!("[Rust EXEC SSH-Init-PWD-Thread] Failed to lock SSH ChildStdin for initial PWD command (PID {}): {}. Resetting SSH state if still active.", initial_pid_for_init_pwd_error, e);
                             if let Ok(mut states_lock) =
                                 command_manager_state_for_thread.commands.lock()
                             {
@@ -580,8 +541,6 @@ pub fn execute_command(
                         }
                     }
                 });
-            } else {
-                eprintln!("[Rust EXEC] New SSH session (pid: {}) started, but child_stdin was None. Cannot send initial PWD command.", pid);
             }
         } else {
             state_to_update.is_ssh_session_active = false;
@@ -610,19 +569,11 @@ pub fn execute_command(
             let mut pwd_marker_state = PwdMarkerParseState::Idle;
 
             let current_thread_id = std::thread::current().id();
-            println!(
-                "[Rust STDOUT Thread {:?} PID {}] Started.",
-                current_thread_id, current_pid_for_stdout_context
-            );
+
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) => {
-                        println!(
-                            "[Rust STDOUT Thread {:?} PID {}] EOF reached.",
-                            current_thread_id, current_pid_for_stdout_context
-                        );
                         if !line_buffer.is_empty() {
-                            println!("[Rust STDOUT Thread {:?} PID {}] Emitting remaining line_buffer: '{}'", current_thread_id, current_pid_for_stdout_context, line_buffer);
                             if let Err(e) = app_handle_for_stdout_emit
                                 .emit("command_output", line_buffer.clone())
                             {
@@ -662,7 +613,6 @@ pub fn execute_command(
                                         || current_line_trimmed
                                             .starts_with("__INITIAL_REMOTE_PWD_MARKER_")
                                     {
-                                        println!("[Rust STDOUT Thread {:?} PID {}] PWD Start Marker detected: {}", current_thread_id, current_pid_for_stdout_context, current_line_trimmed);
                                         pwd_marker_state = PwdMarkerParseState::AwaitingPwd(
                                             current_line_trimmed.clone(),
                                         );
@@ -671,7 +621,6 @@ pub fn execute_command(
                                 }
                                 PwdMarkerParseState::AwaitingPwd(ref marker_val) => {
                                     let new_pwd = current_line_trimmed.clone();
-                                    println!("[Rust STDOUT Thread {:?} PID {}] Captured PWD: '{}' for marker: {}", current_thread_id, current_pid_for_stdout_context, new_pwd, marker_val);
 
                                     let command_manager_state =
                                         app_handle_for_stdout_mgr.state::<CommandManager>();
@@ -685,16 +634,13 @@ pub fn execute_command(
                                                 && state.is_ssh_session_active
                                             {
                                                 state.remote_current_dir = Some(new_pwd.clone());
-                                                println!("[Rust STDOUT Thread {:?} PID {}] Updated remote_current_dir to: {}", current_thread_id, current_pid_for_stdout_context, new_pwd);
                                                 if let Err(e) = app_handle_for_stdout_emit.emit(
                                                     "remote_directory_updated",
                                                     new_pwd.clone(),
                                                 ) {
                                                     eprintln!("[Rust STDOUT Thread {:?} PID {}] Failed to emit remote_directory_updated: {}", current_thread_id, current_pid_for_stdout_context, e);
                                                 }
-                                            } else {
-                                                println!("[Rust STDOUT Thread {:?} PID {}] SSH no longer active or PID mismatch for PWD update. State PID: {:?}, Active: {}", current_thread_id, current_pid_for_stdout_context, state.pid, state.is_ssh_session_active);
-                                            }
+                                            }                                            
                                         }
                                     }
                                     pwd_marker_state =
@@ -703,18 +649,15 @@ pub fn execute_command(
                                 }
                                 PwdMarkerParseState::AwaitingEndMarker(ref marker_val) => {
                                     if current_line_trimmed == *marker_val {
-                                        println!("[Rust STDOUT Thread {:?} PID {}] PWD End Marker detected: {}", current_thread_id, current_pid_for_stdout_context, current_line_trimmed);
                                         pwd_marker_state = PwdMarkerParseState::Idle;
                                         emit_this_segment_to_frontend = false;
                                     } else {
-                                        println!("[Rust STDOUT Thread {:?} PID {}] WARNING: Expected PWD end marker '{}', got: '{}'. Resetting state and emitting line.", current_thread_id, current_pid_for_stdout_context, marker_val, current_line_trimmed);
                                         pwd_marker_state = PwdMarkerParseState::Idle;
                                         if current_line_trimmed
                                             .starts_with("__REMOTE_CD_PWD_MARKER_")
                                             || current_line_trimmed
                                                 .starts_with("__INITIAL_REMOTE_PWD_MARKER_")
                                         {
-                                            println!("[Rust STDOUT Thread {:?} PID {}] PWD Start Marker detected immediately after unexpected line: {}", current_thread_id, current_pid_for_stdout_context, current_line_trimmed);
                                             pwd_marker_state = PwdMarkerParseState::AwaitingPwd(
                                                 current_line_trimmed.clone(),
                                             );
@@ -734,15 +677,10 @@ pub fn execute_command(
                         }
                     }
                     Err(e) => {
-                        println!(
-                            "[Rust STDOUT Thread {:?} PID {}] Error reading stdout: {}",
-                            current_thread_id, current_pid_for_stdout_context, e
-                        );
                         if e.kind() == std::io::ErrorKind::Interrupted {
                             continue;
                         }
                         if !line_buffer.is_empty() {
-                            println!("[Rust STDOUT Thread {:?} PID {}] Emitting remaining line_buffer on error: '{}'", current_thread_id, current_pid_for_stdout_context, line_buffer);
                             if let Err(emit_e) = app_handle_for_stdout_emit
                                 .emit("command_output", line_buffer.clone())
                             {
@@ -753,10 +691,6 @@ pub fn execute_command(
                     }
                 }
             }
-            println!(
-                "[Rust STDOUT Thread {:?} PID {}] Exiting.",
-                current_thread_id, current_pid_for_stdout_context
-            );
         });
     }
 
@@ -767,39 +701,25 @@ pub fn execute_command(
             let mut reader = BufReader::new(stderr_stream);
             let mut buffer = [0; 2048];
             let current_thread_id = std::thread::current().id(); // Get thread ID once
-            println!(
-                "[Rust STDERR Thread {:?}] Started for command.",
-                current_thread_id
-            ); // LOG thread start
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) => {
-                        println!("[Rust STDERR Thread {:?}] EOF reached.", current_thread_id); // LOG
                         break;
                     }
                     Ok(n) => {
                         let error_chunk = String::from_utf8_lossy(&buffer[..n]).to_string();
-                        println!(
-                            "[Rust STDERR Thread {:?}] Read chunk: '{}'",
-                            current_thread_id, error_chunk
-                        ); // LOG
                         if !error_chunk.contains("[sudo] password") {
                             if let Err(e) =
                                 app_handle_stderr.emit("command_error", error_chunk.clone())
                             {
-                                // LOG event emission
                                 println!(
                                     "[Rust STDERR Thread {:?}] Error emitting command_error: {}",
                                     current_thread_id, e
-                                ); // LOG
+                                );
                             }
                         }
                     }
                     Err(e) => {
-                        println!(
-                            "[Rust STDERR Thread {:?}] Error reading stderr: {}",
-                            current_thread_id, e
-                        ); // LOG
                         if e.kind() == std::io::ErrorKind::Interrupted {
                             continue;
                         }
@@ -807,7 +727,6 @@ pub fn execute_command(
                     }
                 }
             }
-            println!("[Rust STDERR Thread {:?}] Exiting.", current_thread_id); // LOG
         });
     }
 
@@ -818,20 +737,11 @@ pub fn execute_command(
     let initial_child_pid_for_wait_thread = pid;
 
     thread::spawn(move || {
-        println!(
-            "[Rust WAIT Thread] Started for PID: {}",
-            initial_child_pid_for_wait_thread
-        );
-
         let status_result = {
             // Lock the child_wait_handle_arc to wait on the child
             let mut child_guard = match child_wait_handle_arc.lock() {
                 Ok(guard) => guard,
                 Err(e) => {
-                    eprintln!(
-                        "[Rust WAIT Thread] Failed to lock child_wait_handle for PID {}: {}",
-                        initial_child_pid_for_wait_thread, e
-                    );
                     // Emit error and end messages
                     let _ = app_handle_wait.emit(
                         "command_error",
@@ -853,8 +763,6 @@ pub fn execute_command(
             let mut states_guard_cleanup = match command_manager_state_in_thread.commands.lock() {
                 Ok(guard) => guard,
                 Err(e) => {
-                    eprintln!("[Rust WAIT Thread] Error locking command_manager in wait thread for PID {}: {}", initial_child_pid_for_wait_thread, e);
-                    // Cannot panic here, just log and proceed if possible or return
                     return;
                 }
             };
@@ -870,20 +778,14 @@ pub fn execute_command(
                         state_to_clear.is_ssh_session_active = false;
                         state_to_clear.child_stdin = None; // Also clear stdin if it was an SSH session
                         state_to_clear.remote_current_dir = None; // Clear remote dir
-                        println!(
-                            "SSH session (pid: {}) ended by wait thread. Marked inactive.",
-                            initial_child_pid_for_wait_thread
-                        );
+
                         let _ = app_handle_wait.emit("ssh_session_ended", serde_json::json!({ "pid": initial_child_pid_for_wait_thread, "reason": "SSH session ended normally."}));
                     } else if was_ssh_session_starter {
                         // SSH session starter but was already marked inactive (e.g. by write thread error)
                         // Ensure remote_current_dir is also cleared if it hasn't been.
                         state_to_clear.remote_current_dir = None;
-                        println!("Wait thread: SSH session (pid: {}) was already inactive. Clearing handles.", initial_child_pid_for_wait_thread);
                         state_to_clear.child_stdin = None;
                     }
-                } else {
-                    println!("[Rust WAIT Thread] PID mismatch during cleanup. Current state.pid: {:?}, waited_pid: {}. No cleanup performed by this thread.", state_to_clear.pid, initial_child_pid_for_wait_thread);
                 }
             }
         } // states_guard_cleanup lock released
@@ -976,8 +878,7 @@ pub fn execute_sudo_command(
             let mut stdin_guard = match stdin_arc.lock() {
                 Ok(guard) => guard,
                 Err(e) => {
-                    eprintln!("Failed to lock sudo stdin: {}", e);
-                    let _ = app_handle_stdin.emit("command_error", "Failed to lock sudo stdin");
+                    let _ = app_handle_stdin.emit("command_error", e.to_string());
                     return;
                 }
             };

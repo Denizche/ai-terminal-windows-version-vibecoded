@@ -41,8 +41,8 @@ pub fn get_shell_path() -> Option<String> {
         }
     }
 
-    // If shell method fails, try to get PATH from environment
-    std::env::var("PATH").ok()
+    // If the shell method fails, try to get PATH from the environment
+    env::var("PATH").ok()
 }
 
 #[command]
@@ -64,7 +64,7 @@ pub fn get_working_directory(
             Ok(state.current_dir.clone())
         }
     } else {
-        // Fallback if session doesn't exist - create new default state
+        // Fallback if the session doesn't exist - create a new default state
         Ok(env::current_dir()
             .unwrap_or_default()
             .to_string_lossy()
