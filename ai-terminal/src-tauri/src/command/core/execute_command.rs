@@ -6,7 +6,7 @@ use std::io::{BufReader, Read, Write};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::{env, thread};
 use tauri::{command, AppHandle, Emitter, Manager, State};
 
@@ -25,21 +25,8 @@ pub fn execute_command(
     // Phase 1: Check and handle active SSH session
     {
         let mut states_guard = command_manager.commands.lock().map_err(|e| e.to_string())?;
-        let key = session_id.clone();
 
-        let state = states_guard
-            .entry(key.clone())
-            .or_insert_with(|| CommandState {
-                current_dir: env::current_dir()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string(),
-                child_wait_handle: None,
-                child_stdin: None,
-                pid: None,
-                is_ssh_session_active: false,
-                remote_current_dir: None,
-            });
+        let mut state = get_command_state(&mut states_guard, session_id.clone());
 
         if state.is_ssh_session_active {
             if let Some(stdin_arc_for_thread) = state.child_stdin.clone() {
@@ -246,20 +233,7 @@ pub fn execute_command(
     // Phase 3: Prepare for and execute new command (local or new SSH)
     let current_dir_clone = {
         let mut states_guard_dir = command_manager.commands.lock().map_err(|e| e.to_string())?;
-        let key_dir = session_id.clone();
-        let state_dir = states_guard_dir
-            .entry(key_dir.clone())
-            .or_insert_with(|| CommandState {
-                current_dir: env::current_dir()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string(),
-                child_wait_handle: None,
-                child_stdin: None,
-                pid: None,
-                is_ssh_session_active: false,
-                remote_current_dir: None,
-            });
+        let state_dir = get_command_state(&mut states_guard_dir, session_id.clone());
         state_dir.current_dir.clone()
     }; // Lock for current_dir released.
 
@@ -351,7 +325,6 @@ pub fn execute_command(
 
     // Now, use the (potentially transformed) command_to_run for direct/sshpass spawning
     if is_potential_ssh_session_starter && !original_command_is_sudo {
-
         let executable_name: String;
         let mut arguments: Vec<String> = Vec::new();
 
@@ -640,7 +613,7 @@ pub fn execute_command(
                                                 ) {
                                                     eprintln!("[Rust STDOUT Thread {:?} PID {}] Failed to emit remote_directory_updated: {}", current_thread_id, current_pid_for_stdout_context, e);
                                                 }
-                                            }                                            
+                                            }
                                         }
                                     }
                                     pwd_marker_state =
@@ -868,7 +841,7 @@ pub fn execute_sudo_command(
 
     state.child_wait_handle = Some(child_arc.clone()); // Store wait handle
     state.pid = Some(child_pid); // Store PID
-                                 // For sudo, is_ssh_session_active remains false, child_stdin for SSH is not set.
+    // For sudo, is_ssh_session_active remains false, child_stdin for SSH is not set.
 
     // Send password to stdin
     if let Some(stdin_arc) = sudo_stdin {
@@ -883,14 +856,7 @@ pub fn execute_sudo_command(
                 }
             };
             if stdin_guard
-                .write_all(
-                    format!(
-                        "{}
-",
-                        password
-                    )
-                    .as_bytes(),
-                )
+                .write_all(format!("{}", password).as_bytes())
                 .is_err()
             {
                 let _ = app_handle_stdin.emit("command_error", "Failed to send password to sudo");
@@ -967,13 +933,24 @@ pub fn execute_sudo_command(
             }
         };
 
-        let exit_msg = if status.success() {
-            "Command completed successfully."
-        } else {
-            "Command failed."
-        };
-        let _ = app_handle_wait.emit("command_end", exit_msg);
+        let _ = app_handle_wait.emit("command_end", format!("Success: {}", status.success()));
     });
 
-    Ok("Sudo command started. Output will stream in real-time.".to_string())
+    Ok("Command started. Output will stream in realtime.".to_string())
+}
+
+fn get_command_state(command_state_guard:  &mut MutexGuard<HashMap<String, CommandState>>, session_id: String) -> CommandState {
+    command_state_guard
+        .entry(session_id)
+        .or_insert_with(|| CommandState {
+            current_dir: env::current_dir()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            child_wait_handle: None,
+            child_stdin: None,
+            pid: None,
+            is_ssh_session_active: false, // ensure default
+            remote_current_dir: None,
+        }).clone()
 }

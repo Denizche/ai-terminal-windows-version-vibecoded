@@ -2,6 +2,7 @@ use std::process::Child;
 use std::sync::{Arc, Mutex};
 
 // Store the current working directory for each command
+#[derive(Clone)]
 pub struct CommandState {
     pub current_dir: String,
     pub child_wait_handle: Option<Arc<Mutex<Child>>>, // For wait() and kill()
