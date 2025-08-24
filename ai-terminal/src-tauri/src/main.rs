@@ -1,13 +1,12 @@
 extern crate fix_path_env;
 
-use ai_terminal_lib::command;
 use ai_terminal_lib::command::git_commands::git::new_git_command;
 use ai_terminal_lib::command::types::command_manager::CommandManager;
 use ai_terminal_lib::ollama::types::ollama_model_list::OllamaModelList;
 use ai_terminal_lib::ollama::types::ollama_request::OllamaRequest;
 use ai_terminal_lib::ollama::types::ollama_response::OllamaResponse;
 use ai_terminal_lib::utils::operating_system_utils::get_operating_system;
-use serde_json;
+use ai_terminal_lib::{command, utils};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -112,11 +111,9 @@ fn autocomplete(
                 {
                     let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
 
-                    // For 'cd' command, only show directories
-                    if input_parts.len() > 0 && input_parts[0] == "cd" {
-                        if !is_dir {
-                            continue;
-                        }
+                    // For the 'cd' command, only show directories
+                    if !input_parts.is_empty() && input_parts[0] == "cd" && !is_dir {
+                        continue;
                     }
 
                     // Add trailing slash for directories
@@ -605,58 +602,6 @@ fn get_current_pid(
 }
 
 #[tauri::command]
-fn terminate_command(
-    session_id: String,
-    command_manager: State<'_, CommandManager>,
-) -> Result<(), String> {
-    let mut states = command_manager.commands.lock().map_err(|e| e.to_string())?;
-    let key = session_id;
-
-    let pid = if let Some(state) = states.get(&key) {
-        state.pid.unwrap_or(0)
-    } else {
-        return Err("No active process found".to_string());
-    };
-
-    if pid == 0 {
-        return Err("No active process to terminate".to_string());
-    }
-
-    #[cfg(unix)]
-    {
-        use nix::sys::signal::{kill, Signal};
-        use nix::unistd::Pid;
-
-        // Try to send SIGTERM first
-        if let Err(err) = kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
-            return Err(format!("Failed to send SIGTERM: {}", err));
-        }
-
-        // Give the process a moment to terminate gracefully
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
-        // If it's still running, force kill with SIGKILL
-        if let Err(err) = kill(Pid::from_raw(pid as i32), Signal::SIGKILL) {
-            return Err(format!("Failed to send SIGKILL: {}", err));
-        }
-    }
-
-    // Clear the PID after successful termination
-    if let Some(state) = states.get_mut(&key) {
-        state.pid = None;
-    }
-
-    Ok(())
-}
-
-// Add a new command to get all system environment variables
-#[tauri::command]
-fn get_system_env() -> Result<Vec<(String, String)>, String> {
-    let env_vars: Vec<(String, String)> = std::env::vars().collect();
-    Ok(env_vars)
-}
-
-#[tauri::command]
 fn git_fetch_and_pull(
     session_id: String,
     command_manager: State<'_, CommandManager>,
@@ -803,7 +748,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             command::core::execute_command::execute_command,
             command::core::execute_command::execute_sudo_command,
-            terminate_command,
+            command::core::terminate_command::terminate_command,
             get_current_pid,
             autocomplete,
             get_working_directory,
@@ -816,7 +761,7 @@ fn main() {
             get_git_branch,
             get_git_branches,
             switch_branch,
-            get_system_env,
+            utils::operating_system_utils::get_system_environment_variables,
             git_fetch_and_pull,
             git_commit_and_push,
             get_github_remote_and_branch,

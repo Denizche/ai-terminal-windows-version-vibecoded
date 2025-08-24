@@ -1,6 +1,6 @@
 use crate::command::types::command_manager::CommandManager;
 use crate::command::types::command_state::CommandState;
-use crate::command::utils::path_utils::get_shell_path;
+use crate::utils::file_system_utils::get_shell_path;
 use std::collections::HashMap;
 use std::io::{BufReader, Read, Write};
 use std::os::unix::process::CommandExt;
@@ -26,17 +26,10 @@ pub fn execute_command(
     {
         let mut states_guard = command_manager.commands.lock().map_err(|e| e.to_string())?;
         let key = session_id.clone();
-        println!(
-            "[Rust EXEC DEBUG] Phase 1: Checking for active SSH session for key: {}",
-            key
-        );
 
-        let state = states_guard.entry(key.clone()).or_insert_with(|| {
-            println!(
-                "[Rust EXEC DEBUG] No existing state for key {}, creating new.",
-                key
-            );
-            CommandState {
+        let state = states_guard
+            .entry(key.clone())
+            .or_insert_with(|| CommandState {
                 current_dir: env::current_dir()
                     .unwrap_or_default()
                     .to_string_lossy()
@@ -46,27 +39,16 @@ pub fn execute_command(
                 pid: None,
                 is_ssh_session_active: false,
                 remote_current_dir: None,
-            }
-        });
+            });
 
         if state.is_ssh_session_active {
-            println!("[Rust EXEC DEBUG] Active SSH session detected (is_ssh_session_active=true).");
             if let Some(stdin_arc_for_thread) = state.child_stdin.clone() {
                 let active_pid_for_log = state.pid.unwrap_or(0);
-                println!(
-                    "[Rust EXEC DEBUG] Found child_stdin for active SSH (Original PID: {}).",
-                    active_pid_for_log
-                );
 
                 if let Err(e) = app_handle.emit("command_forwarded_to_ssh", command.clone()) {
                     eprintln!(
                         "[Rust EXEC DEBUG] Failed to emit command_forwarded_to_ssh: {}",
                         e
-                    );
-                } else {
-                    println!(
-                        "[Rust EXEC DEBUG] Emitted command_forwarded_to_ssh for command: {}",
-                        command
                     );
                 }
 
@@ -74,13 +56,7 @@ pub fn execute_command(
                 let command_clone_for_thread = command.clone();
                 let session_id_clone_for_thread = session_id.clone();
 
-                println!("[Rust EXEC DEBUG] Attempting to forward command '{}' to active SSH session (Original PID: {})", command_clone_for_thread, active_pid_for_log);
-
                 thread::spawn(move || {
-                    println!(
-                        "[Rust EXEC DEBUG SSH-Write-Thread] Spawned for command: {}",
-                        command_clone_for_thread
-                    );
                     let command_manager_state_for_thread =
                         app_handle_clone_for_thread.state::<CommandManager>();
 
@@ -96,7 +72,6 @@ pub fn execute_command(
                                 {
                                     if s.pid == Some(active_pid_for_log) && s.is_ssh_session_active
                                     {
-                                        println!("[Rust EXEC DEBUG SSH-Write-Thread] Resetting SSH active state (stdin, pid:{}) due to ChildStdin lock failure.", active_pid_for_log);
                                         s.is_ssh_session_active = false;
                                         s.child_stdin = None;
                                         s.remote_current_dir = None;
@@ -116,14 +91,6 @@ pub fn execute_command(
                             return;
                         }
                     };
-                    println!(
-                        "[Rust EXEC DEBUG SSH-Write-Thread] Successfully locked SSH ChildStdin."
-                    );
-
-                    println!(
-                        "[Rust EXEC DEBUG SSH-Write-Thread] Writing command to SSH ChildStdin: {}",
-                        command_clone_for_thread
-                    );
 
                     let is_remote_cd = command_clone_for_thread.trim().starts_with("cd ");
                     let actual_command_to_write_ssh = if is_remote_cd {
@@ -149,18 +116,12 @@ pub fn execute_command(
                         stdin_guard.write_all(actual_command_to_write_ssh.as_bytes());
 
                     let final_result = if write_attempt.is_ok() {
-                        println!("[Rust EXEC DEBUG SSH-Write-Thread] Write successful. Flushing ChildStdin.");
                         stdin_guard.flush()
                     } else {
-                        eprintln!(
-                            "[Rust EXEC DEBUG SSH-Write-Thread] Write failed: {:?}. Won't flush.",
-                            write_attempt.as_ref().err()
-                        );
                         write_attempt
                     };
 
                     if let Err(e) = final_result {
-                        eprintln!("[Rust EXEC DEBUG SSH-Write-Thread] Failed to write/flush to SSH ChildStdin: {}. Resetting SSH state.", e);
                         if let Ok(mut states_lock_in_thread) =
                             command_manager_state_for_thread.commands.lock()
                         {
@@ -184,22 +145,14 @@ pub fn execute_command(
                             ),
                         );
                         let _ = app_handle_clone_for_thread.emit("command_end", "Command failed.");
-                        return;
                     }
-                    println!("[Rust EXEC DEBUG SSH-Write-Thread] Write and flush successful for command: {}", command_clone_for_thread);
-                    println!(
-                        "[Rust EXEC DEBUG SSH-Write-Thread] Exiting for command: {}",
-                        command_clone_for_thread
-                    );
                 });
 
                 drop(states_guard);
-                println!("[Rust EXEC DEBUG] Returning COMMAND_FORWARDED_TO_ACTIVE_SSH_MARKER for forwarded command (PID: {}).", active_pid_for_log);
                 return Ok(COMMAND_FORWARDED_TO_ACTIVE_SSH_MARKER.to_string());
             } else {
                 // state.child_stdin is None, but state.is_ssh_session_active was true
                 let active_pid_for_log = state.pid.unwrap_or(0);
-                eprintln!("[Rust EXEC DEBUG] SSH session active but no child_stdin found (PID: {}). Resetting state.", active_pid_for_log);
                 state.is_ssh_session_active = false;
                 state.pid = None; // Clear PID as session is now considered broken
                 state.remote_current_dir = None;
@@ -207,8 +160,6 @@ pub fn execute_command(
                 let _ = app_handle.emit("ssh_session_ended", serde_json::json!({ "pid": active_pid_for_log, "reason": "SSH session inconsistency: active but no stdin."}));
                 return Err("SSH session conflict: active but no stdin. Please retry.".to_string());
             }
-        } else {
-            println!("[Rust EXEC DEBUG] Phase 1: Finished SSH check.");
         }
     }
 

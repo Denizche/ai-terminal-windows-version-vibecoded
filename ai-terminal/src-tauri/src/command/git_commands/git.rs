@@ -1,4 +1,4 @@
-use crate::command::utils::path_utils::get_shell_path;
+use crate::utils::file_system_utils::get_shell_path;
 use std::process::Command;
 
 pub fn new_git_command() -> Command {
