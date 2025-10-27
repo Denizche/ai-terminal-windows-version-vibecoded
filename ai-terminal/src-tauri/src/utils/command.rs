@@ -1,4 +1,5 @@
 use crate::command::types::command_manager::CommandManager;
+use crate::ollama::types::ai_provider::AIProvider;
 use crate::ollama::types::ollama_model_list::OllamaModelList;
 use tauri::State;
 
@@ -12,7 +13,10 @@ pub async fn handle_special_command(
                 /help - Show this help message\n\
                 /models - List available models\n\
                 /model [name] - Show current model or switch to a different model\n\
-                /host [url] - Show current API host or set a new one"
+                /host [url] - Show current API host or set a new one\n\
+                /provider [name] - Show current AI provider or switch (ollama, localai, openai)\n\
+                /localai [model] - Quick setup for LocalAI on localhost:8000\n\
+                /params temp=[0.0-1.0] tokens=[num] - Set AI parameters"
             .to_string()),
         "/models" => {
             // Get list of available models from Ollama API
@@ -96,6 +100,92 @@ pub async fn handle_special_command(
             } else {
                 Err("Invalid host command. Use /host [url] to change the API host.".to_string())
             }
+        }
+        cmd if cmd.starts_with("/provider") => {
+            let parts: Vec<&str> = cmd.split_whitespace().collect();
+
+            // Handle showing current provider
+            if parts.len() == 1 {
+                let (current_provider, current_host);
+                {
+                    let ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+                    current_provider = ollama_state.provider.clone();
+                    current_host = ollama_state.api_host.clone();
+                }
+                Ok(format!("Current AI provider: {} ({})", current_provider, current_host))
+            }
+            // Handle switching provider
+            else if parts.len() >= 2 {
+                let provider = match parts[1].to_lowercase().as_str() {
+                    "ollama" => AIProvider::Ollama,
+                    "local" | "localai" => AIProvider::LocalAI,
+                    "openai" => AIProvider::OpenAI,
+                    _ => return Err(format!("Unknown provider: {}. Available: ollama, localai, openai", parts[1])),
+                };
+                
+                {
+                    let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+                    ollama_state.provider = provider.clone();
+                }
+                Ok(format!("Switched to AI provider: {}", provider))
+            } else {
+                Err("Invalid provider command. Use /provider [name] to switch providers.".to_string())
+            }
+        }
+        cmd if cmd.starts_with("/localai") => {
+            let parts: Vec<&str> = cmd.split_whitespace().collect();
+            let model = if parts.len() >= 2 {
+                Some(parts[1].to_string())
+            } else {
+                None
+            };
+            
+            {
+                let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+                ollama_state.provider = AIProvider::LocalAI;
+                ollama_state.api_host = "http://localhost:8000".to_string();
+                if let Some(model_name) = model.as_ref() {
+                    ollama_state.current_model = model_name.clone();
+                }
+            }
+            
+            if let Some(model_name) = model {
+                Ok(format!("Configured LocalAI on localhost:8000 with model: {}", model_name))
+            } else {
+                Ok("Configured LocalAI on localhost:8000 (using default model)".to_string())
+            }
+        }
+        cmd if cmd.starts_with("/params") => {
+            let params_str = &cmd[7..]; // Remove "/params "
+            let mut temperature: Option<f32> = None;
+            let mut max_tokens: Option<u32> = None;
+            
+            // Parse parameters like "temp=0.7 tokens=2048"
+            for param in params_str.split_whitespace() {
+                if let Some((key, value)) = param.split_once('=') {
+                    match key.to_lowercase().as_str() {
+                        "temp" | "temperature" => {
+                            temperature = value.parse().ok();
+                        }
+                        "tokens" | "max_tokens" => {
+                            max_tokens = value.parse().ok();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            
+            {
+                let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+                if let Some(temp) = temperature {
+                    ollama_state.temperature = Some(temp);
+                }
+                if let Some(tokens) = max_tokens {
+                    ollama_state.max_tokens = Some(tokens);
+                }
+            }
+            
+            Ok(format!("AI parameters updated - Temperature: {:?}, Max tokens: {:?}", temperature, max_tokens))
         }
         _ => Err(format!(
             "Unknown command: {}. Type /help for available commands.",

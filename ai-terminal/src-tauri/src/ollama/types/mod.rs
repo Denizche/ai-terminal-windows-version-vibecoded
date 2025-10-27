@@ -1,3 +1,4 @@
+pub mod ai_provider;
 pub mod ollama_model;
 pub mod ollama_model_list;
 pub mod ollama_request;

@@ -3,12 +3,105 @@ use crate::command::types::command_state::CommandState;
 use crate::utils::file_system_utils::get_shell_path;
 use std::collections::HashMap;
 use std::io::{BufReader, Read, Write};
-use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{env, thread};
 use tauri::{command, AppHandle, Emitter, Manager, State};
+
+// Platform-specific imports
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
+
+#[cfg(windows)]
+use crate::utils::windows_utils::{get_windows_shell_command, expand_windows_tilde, normalize_windows_path, is_windows_absolute_path};
+
+// Cross-platform utility functions
+fn normalize_path(path: &str) -> String {
+    #[cfg(windows)]
+    {
+        let expanded = expand_windows_tilde(path);
+        normalize_windows_path(&expanded)
+    }
+    #[cfg(unix)]
+    {
+        if path.starts_with('~') {
+            if let Some(home) = dirs::home_dir() {
+                if path == "~" {
+                    home.to_string_lossy().to_string()
+                } else {
+                    format!("{}{}", home.to_string_lossy(), &path[1..])
+                }
+            } else {
+                path.to_string()
+            }
+        } else {
+            path.to_string()
+        }
+    }
+}
+
+fn is_absolute_path(path: &str) -> bool {
+    #[cfg(windows)]
+    {
+        is_windows_absolute_path(path)
+    }
+    #[cfg(unix)]
+    {
+        path.starts_with('/')
+    }
+}
+
+fn get_shell_command() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        get_windows_shell_command()
+    }
+    #[cfg(unix)]
+    {
+        vec!["sh".to_string(), "-c".to_string()]
+    }
+}
+
+fn create_command_with_shell(command: &str, current_dir: &str) -> std::io::Result<Command> {
+    let shell_cmd = get_shell_command();
+    let mut cmd = Command::new(&shell_cmd[0]);
+    
+    #[cfg(windows)]
+    {
+        // For Windows, handle the command properly based on shell type
+        cmd.arg(&shell_cmd[1]).arg(command);
+    }
+    #[cfg(unix)]
+    {
+        cmd.arg(&shell_cmd[1]).arg(format!("exec {}", command));
+    }
+    
+    cmd.current_dir(current_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    
+    Ok(cmd)
+}
+
+fn setup_process_session(_cmd: &mut Command) {
+    #[cfg(unix)]
+    unsafe {
+        _cmd.pre_exec(|| match nix::unistd::setsid() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("setsid failed: {}", e),
+            )),
+        });
+    }
+    #[cfg(windows)]
+    {
+        // On Windows, we don't need setsid equivalent for most cases
+        // The process will naturally be in a separate process group
+    }
+}
 
 #[command]
 pub fn execute_command(
@@ -170,25 +263,22 @@ pub fn execute_command(
                 Err("Could not determine home directory".to_string())
             };
         }
+        
+        // Normalize the path for cross-platform compatibility
+        let normalized_path = normalize_path(path);
         let current_path = Path::new(&command_state_cd.current_dir);
-        let new_path = if path.starts_with('~') {
-            if let Some(home_dir) = dirs::home_dir() {
-                let without_tilde = path.trim_start_matches('~');
-                let rel_path = without_tilde.trim_start_matches('/');
-                if rel_path.is_empty() {
-                    home_dir
-                } else {
-                    home_dir.join(rel_path)
-                }
-            } else {
-                drop(states_guard_cd);
-                return Err("Could not determine home directory".to_string());
-            }
-        } else if path.starts_with('/') {
-            std::path::PathBuf::from(path)
+        
+        let new_path = if normalized_path.starts_with('~') {
+            // Handle tilde expansion
+            std::path::PathBuf::from(normalize_path(&normalized_path))
+        } else if is_absolute_path(&normalized_path) {
+            std::path::PathBuf::from(&normalized_path)
         } else {
             let mut result_path = current_path.to_path_buf();
-            let path_components: Vec<&str> = path.split('/').collect();
+            // Use the appropriate path separator for the platform
+            let separator = if cfg!(windows) { '\\' } else { '/' };
+            let path_components: Vec<&str> = normalized_path.split(separator).collect();
+            
             for component in path_components {
                 if component == ".." {
                     if let Some(parent) = result_path.parent() {
@@ -364,37 +454,34 @@ pub fn execute_command(
             }
         };
     } else {
-        // Fallback to sh -c for non-SSH or sudo commands
+        // Fallback to cross-platform shell execution for non-SSH or sudo commands
         let final_shell_command = if original_command_is_sudo && !original_command_is_sudo_ssh {
-            command_to_run.clone()
+            // For sudo commands on Windows, we need different handling
+            #[cfg(windows)]
+            {
+                // Windows doesn't have sudo, so we'll need to handle this differently
+                // For now, just pass the command as-is and let it fail gracefully
+                command_to_run.clone()
+            }
+            #[cfg(unix)]
+            {
+                command_to_run.clone()
+            }
         } else {
-            format!("exec {}", command_to_run)
+            command_to_run.clone()
         };
 
-        let mut sh_cmd_to_spawn = Command::new("sh");
-        sh_cmd_to_spawn
-            .arg("-c")
-            .arg(&final_shell_command)
-            .current_dir(&current_dir_clone)
-            .envs(&env_map)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::piped()); // Ensure stdin is piped for sh -c as well
+        let mut shell_cmd_to_spawn = match create_command_with_shell(&final_shell_command, &current_dir_clone) {
+            Ok(cmd) => cmd,
+            Err(e) => return Err(format!("Failed to create shell command: {}", e)),
+        };
+        
+        shell_cmd_to_spawn.envs(&env_map);
+        setup_process_session(&mut shell_cmd_to_spawn);
 
-        #[cfg(unix)]
-        unsafe {
-            sh_cmd_to_spawn.pre_exec(|| match nix::unistd::setsid() {
-                Ok(_) => Ok(()),
-                Err(e) => Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("setsid failed: {}", e),
-                )),
-            });
-        }
-
-        child = match sh_cmd_to_spawn.spawn() {
+        child = match shell_cmd_to_spawn.spawn() {
             Ok(c) => c,
-            Err(e) => return Err(format!("Failed to start command via sh -c: {}", e)),
+            Err(e) => return Err(format!("Failed to start command via shell: {}", e)),
         };
     }
 
@@ -711,7 +798,7 @@ pub fn execute_command(
                 app_handle_for_thread_state.state::<CommandManager>();
             let mut states_guard_cleanup = match command_manager_state_in_thread.commands.lock() {
                 Ok(guard) => guard,
-                Err(e) => {
+                Err(_e) => {
                     return;
                 }
             };
@@ -785,17 +872,38 @@ pub fn execute_sudo_command(
 
     let current_dir = state.current_dir.clone();
 
+    // Create cross-platform sudo command
+    let sudo_command = command
+        .split_whitespace()
+        .skip(1)
+        .collect::<Vec<&str>>()
+        .join(" ");
+    
+    #[cfg(windows)]
+    let mut child_process = {
+        // Windows doesn't have sudo - we could use "runas" but it's interactive
+        // For now, just run the command directly and let Windows UAC handle it
+        let shell_cmd = get_windows_shell_command();
+        match Command::new(&shell_cmd[0])
+            .arg(&shell_cmd[1])
+            .arg(&sudo_command)
+            .current_dir(&current_dir)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(e) => return Err(format!("Failed to start command on Windows: {}", e)),
+        }
+    };
+    
+    #[cfg(unix)]
     let mut child_process = match Command::new("sudo")
         .arg("-S")
         .arg("bash")
         .arg("-c")
-        .arg(
-            command
-                .split_whitespace()
-                .skip(1)
-                .collect::<Vec<&str>>()
-                .join(" "),
-        ) // Skip "sudo" and join the rest
+        .arg(&sudo_command)
         .current_dir(&current_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

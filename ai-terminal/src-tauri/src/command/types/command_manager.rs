@@ -29,10 +29,7 @@ impl CommandManager {
         );
         CommandManager {
             commands: Mutex::new(initial_commands),
-            ollama: Mutex::new(OllamaState {
-                current_model: "llama3.2:latest".to_string(), // Default model will now be overridden by frontend
-                api_host: "http://localhost:11434".to_string(), // Default Ollama host
-            }),
+            ollama: Mutex::new(OllamaState::default()),
         }
     }
 }

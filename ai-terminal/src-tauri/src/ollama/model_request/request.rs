@@ -1,4 +1,5 @@
 use crate::command::types::command_manager::CommandManager;
+use crate::ollama::types::ai_provider::{AIProvider, ChatMessage, LocalAIRequest, LocalAIResponse};
 use crate::ollama::types::ollama_model_list::OllamaModelList;
 use crate::ollama::types::ollama_request::OllamaRequest;
 use crate::ollama::types::ollama_response::OllamaResponse;
@@ -6,7 +7,7 @@ use crate::utils::command::handle_special_command;
 use crate::utils::operating_system_utils::get_operating_system;
 use tauri::{command, State};
 
-// Implement the ask_ai function for Ollama integration
+// Implement the ask_ai function with multi-provider support
 #[command]
 pub async fn ask_ai(
     question: String,
@@ -18,18 +19,17 @@ pub async fn ask_ai(
         return handle_special_command(question, command_manager).await;
     }
 
-    // Regular message to Ollama
-    let model;
-    let api_host;
-
-    // Scope the mutex lock to drop it before any async operations
-    {
+    // Get AI configuration
+    let (model, api_host, provider, temperature, max_tokens) = {
         let ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
-        // Use the model_override if provided, otherwise use the default
-        model = model_override.unwrap_or_else(|| ollama_state.current_model.clone());
-        api_host = ollama_state.api_host.clone();
-        // MutexGuard is dropped here at the end of scope
-    }
+        (
+            model_override.unwrap_or_else(|| ollama_state.current_model.clone()),
+            ollama_state.api_host.clone(),
+            ollama_state.provider.clone(),
+            ollama_state.temperature,
+            ollama_state.max_tokens,
+        )
+    };
 
     // Get the current operating system
     let os = get_operating_system();
@@ -43,7 +43,23 @@ pub async fn ask_ai(
         os, os
     );
 
-    // Combine the system prompt with the user's question
+    match provider {
+        AIProvider::Ollama => {
+            ask_ollama_ai(api_host, model, system_prompt, question).await
+        }
+        AIProvider::LocalAI | AIProvider::OpenAI => {
+            ask_local_ai(api_host, model, system_prompt, question, temperature, max_tokens).await
+        }
+    }
+}
+
+// Ollama-specific AI request
+async fn ask_ollama_ai(
+    api_host: String,
+    model: String,
+    system_prompt: String,
+    question: String,
+) -> Result<String, String> {
     let combined_prompt = format!("{}\n\nUser: {}", system_prompt, question);
 
     let client = reqwest::Client::new();
@@ -68,6 +84,71 @@ pub async fn ask_ai(
         .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
 
     Ok(response.response)
+}
+
+// LocalAI/OpenAI-compatible API request
+async fn ask_local_ai(
+    api_host: String,
+    model: String,
+    system_prompt: String,
+    question: String,
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+) -> Result<String, String> {
+    let messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: system_prompt,
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: question,
+        },
+    ];
+
+    let client = reqwest::Client::new();
+    let endpoint = if api_host.ends_with("/v1/chat/completions") {
+        api_host
+    } else if api_host.ends_with("/v1") {
+        format!("{}/chat/completions", api_host)
+    } else {
+        format!("{}/v1/chat/completions", api_host)
+    };
+
+    let res = client
+        .post(&endpoint)
+        .json(&LocalAIRequest {
+            model,
+            messages,
+            temperature,
+            max_tokens,
+            stream: Some(false),
+        })
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send request to LocalAI API: {}", e))?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let error_text = res
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("LocalAI API error {}: {}", status, error_text));
+    }
+
+    let response: LocalAIResponse = res
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse LocalAI response: {}", e))?;
+
+    if let Some(choice) = response.choices.first() {
+        if let Some(message) = &choice.message {
+            return Ok(message.content.clone());
+        }
+    }
+
+    Err("No valid response from LocalAI".to_string())
 }
 
 // Add function to get models from Ollama API
@@ -135,5 +216,68 @@ pub fn set_host(
 ) -> Result<String, String> {
     let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
     ollama_state.api_host = host.clone();
-    Ok(format!("Changed Ollama API host to: {}", host))
+    Ok(format!("Changed AI API host to: {}", host))
+}
+
+// Add function to set AI provider
+#[command]
+pub fn set_provider(
+    provider_name: String,
+    command_manager: State<'_, CommandManager>,
+) -> Result<String, String> {
+    let provider = match provider_name.to_lowercase().as_str() {
+        "ollama" => AIProvider::Ollama,
+        "local" | "localai" => AIProvider::LocalAI,
+        "openai" => AIProvider::OpenAI,
+        _ => return Err(format!("Unknown provider: {}. Available: ollama, localai, openai", provider_name)),
+    };
+
+    let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+    ollama_state.provider = provider.clone();
+    Ok(format!("Switched to AI provider: {}", provider))
+}
+
+// Get current provider
+#[command]
+pub fn get_provider(command_manager: State<'_, CommandManager>) -> Result<String, String> {
+    let ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+    Ok(format!("Current AI provider: {}", ollama_state.provider))
+}
+
+// Quick setup for localhost:8000
+#[command]
+pub fn setup_local_ai(
+    model_name: Option<String>,
+    command_manager: State<'_, CommandManager>,
+) -> Result<String, String> {
+    let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+    ollama_state.provider = AIProvider::LocalAI;
+    ollama_state.api_host = "http://localhost:8000".to_string();
+    if let Some(model) = model_name {
+        ollama_state.current_model = model;
+    }
+    Ok("Configured to use LocalAI on localhost:8000".to_string())
+}
+
+// Set AI parameters
+#[command]
+pub fn set_ai_params(
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+    command_manager: State<'_, CommandManager>,
+) -> Result<String, String> {
+    let mut ollama_state = command_manager.ollama.lock().map_err(|e| e.to_string())?;
+    
+    if let Some(temp) = temperature {
+        ollama_state.temperature = Some(temp);
+    }
+    if let Some(tokens) = max_tokens {
+        ollama_state.max_tokens = Some(tokens);
+    }
+    
+    Ok(format!(
+        "AI parameters updated - Temperature: {:?}, Max tokens: {:?}", 
+        ollama_state.temperature, 
+        ollama_state.max_tokens
+    ))
 }
