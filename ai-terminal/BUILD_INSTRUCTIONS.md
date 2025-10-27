@@ -1,237 +1,196 @@
-# Инструкции по сборке AI Terminal (.exe)
+# AI Terminal Build Instructions (.exe)
 
-## Доступные скрипты сборки
+## Available Build Scripts
 
-У вас есть несколько вариантов для сборки AI Terminal в исполняемый файл Windows:
+You have several options for building AI Terminal into a Windows executable:
 
-### 1. `build-exe.bat` - Улучшенный Batch скрипт
-**Рекомендуется для большинства пользователей**
-
-```cmd
-build-exe.bat
-```
-
-Особенности:
-- ✅ Цветной вывод с эмодзи
-- ✅ Полная проверка всех зависимостей
-- ✅ Автоматическая установка Tauri CLI
-- ✅ Очистка предыдущих сборок
-- ✅ Подробная информация об артефактах сборки
-- ✅ Автоматическое открытие папки с результатами
-
-### 2. `build-exe.ps1` - PowerShell скрипт
-**Рекомендуется для продвинутых пользователей**
-
-```powershell
-# Базовая сборка
-.\build-exe.ps1
-
-# С очисткой предыдущих сборок
-.\build-exe.ps1 -Clean
-
-# Пропустить установку зависимостей
-.\build-exe.ps1 -SkipDeps
-
-# Debug сборка
-.\build-exe.ps1 -Release:$false
-
-# Комбинация параметров
-.\build-exe.ps1 -Clean -SkipDeps
-```
-
-Особенности:
-- ✅ Более гибкие параметры запуска
-- ✅ Лучшая обработка ошибок
-- ✅ Показывает размеры файлов
-- ✅ Поддержка debug сборки
-- ✅ Современный PowerShell синтаксис
-
-### 3. `build-windows.bat` - Оригинальный скрипт
-**Простой и быстрый вариант**
+### 1. `build-windows.bat` - Simple Batch Script
+**Recommended for most users**
 
 ```cmd
 build-windows.bat
 ```
 
-## Что нужно для сборки
+Features:
+- ✅ Simple and reliable build process
+- ✅ Proper error handling and user feedback
+- ✅ Automatic dependency installation
+- ✅ Creates ai-terminal.exe executable
+- ✅ Works consistently on Windows systems
 
-### Обязательные требования:
+## Prerequisites
+
+### Required:
 
 1. **Node.js 18+**
-   - Скачать: https://nodejs.org/
-   - Проверить: `node --version`
+   - Download: https://nodejs.org/
+   - Verify: `node --version`
 
 2. **Rust & Cargo**
-   - Скачать: https://rustup.rs/
-   - Проверить: `cargo --version`
+   - Download: https://rustup.rs/
+   - Verify: `cargo --version`
 
-3. **Visual Studio Build Tools** (для Windows)
-   - Скачать: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022
-   - Или полную Visual Studio с компонентами C++
+3. **Visual Studio Build Tools** (Windows only)
+   - Download: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022
+   - Or full Visual Studio with C++ components
 
-### Опционально:
+### Optional:
 
-4. **Git** (если клонируете репозиторий)
-   - Скачать: https://git-scm.com/
+4. **Git** (if cloning the repository)
+   - Download: https://git-scm.com/
 
-## Процесс сборки
+## Build Process
 
-### Шаг 1: Подготовка
+### Step 1: Preparation
 ```cmd
-# Перейти в папку проекта
+# Navigate to project folder
 cd ai-terminal
 
-# Убедиться, что все файлы на месте
+# Verify all files are present
 dir
-# Должны быть: package.json, src-tauri папка
+# Should have: package.json, src-tauri folder
 ```
 
-### Шаг 2: Запуск сборки
-Выберите один из скриптов:
+### Step 2: Run Build Script
+Use the available script:
 
 ```cmd
-# Вариант 1: Улучшенный Batch (рекомендуется)
-build-exe.bat
-
-# Вариант 2: PowerShell (для продвинутых)
-powershell -ExecutionPolicy Bypass -File build-exe.ps1
-
-# Вариант 3: Оригинальный
+# Simple build (recommended)
 build-windows.bat
 ```
 
-### Шаг 3: Ожидание
-- Первая сборка может занять 10-20 минут
-- Rust компилирует множество зависимостей
-- Последующие сборки будут быстрее
+### Step 3: Wait
+- First build may take 10-20 minutes
+- Rust compiles many dependencies
+- Subsequent builds will be faster
 
-### Шаг 4: Результат
-После успешной сборки файлы будут в:
+### Step 4: Result
+After successful build, files will be in:
 ```
 src-tauri/target/release/bundle/
-├── msi/           # MSI установщик (рекомендуется)
-├── nsis/          # NSIS установщик
+├── msi/           # MSI installer (recommended)
+├── nsis/          # NSIS installer
 └── ...
 
 src-tauri/target/release/
-└── ai-terminal.exe # Исполняемый файл
+└── ai-terminal.exe # Executable file
 ```
 
 ## Типичные проблемы и решения
 
-### 1. "Node.js не найден"
+### 1. "Node.js not found"
 ```cmd
-# Проверить установку
+# Check installation
 node --version
 npm --version
 
-# Если не работает - переустановить Node.js
+# If not working - reinstall Node.js
 ```
 
-### 2. "Rust/Cargo не найден"
+### 2. "Rust/Cargo not found"
 ```cmd
-# Проверить установку
+# Check installation
 cargo --version
 
-# Если не работает:
-# 1. Установить Rust: https://rustup.rs/
-# 2. Перезапустить терминал
-# 3. Обновить: rustup update
+# If not working:
+# 1. Install Rust: https://rustup.rs/
+# 2. Restart terminal
+# 3. Update: rustup update
 ```
 
-### 3. "Visual Studio Build Tools отсутствуют"
-- Установить Visual Studio Build Tools
-- Или Visual Studio Community с C++ компонентами
-- Перезапустить терминал после установки
+### 3. "Visual Studio Build Tools missing"
+- Install Visual Studio Build Tools
+- Or Visual Studio Community with C++ components
+- Restart terminal after installation
 
-### 4. "Ошибка компиляции Rust"
+### 4. "Rust compilation error"
 ```cmd
-# Обновить Rust
+# Update Rust
 rustup update
 
-# Очистить кэш
+# Clean cache
 cd src-tauri
 cargo clean
 cd ..
 
-# Попробовать снова
+# Try again
 ```
 
-### 5. "Windows Defender блокирует сборку"
-- Добавить папку проекта в исключения Windows Defender
-- Особенно важно для `src-tauri/target` папки
+### 5. "Windows Defender blocking build"
+- Add project folder to Windows Defender exclusions
+- Especially important for `src-tauri/target` folder
 
-### 6. "Не хватает памяти"
-- Закрыть другие приложения
-- Rust компиляция требует много памяти (4GB+ рекомендуется)
+### 6. "Not enough memory"
+- Close other applications
+- Rust compilation requires a lot of memory (4GB+ recommended)
 
-### 7. "Ошибки npm"
+### 7. "npm errors"
 ```cmd
-# Очистить кэш npm
+# Clean npm cache
 npm cache clean --force
 
-# Удалить node_modules и переустановить
+# Remove node_modules and reinstall
 rmdir /s node_modules
 npm install
 ```
 
-## Дополнительные команды
+## Additional Commands
 
-### Ручная сборка (для отладки):
+### Manual Build (for debugging):
 ```cmd
-# Установить зависимости
+# Install dependencies
 npm install
 
-# Собрать фронтенд
+# Build frontend
 npm run build
 
-# Собрать Tauri приложение
+# Build Tauri application
 npm run tauri build
 
-# Для debug версии
+# For debug version
 npm run tauri build -- --debug
 ```
 
-### Запуск в режиме разработки:
+### Run in development mode:
 ```cmd
 npm run tauri dev
 ```
 
-### Обновление зависимостей:
+### Update dependencies:
 ```cmd
 npm update
 rustup update
 ```
 
-## Распространение
+## Distribution
 
-После успешной сборки:
+After successful build:
 
-1. **MSI установщик** - лучший вариант для распространения
-   - Пользователи могут установить через обычный интерфейс Windows
-   - Автоматически регистрируется в "Программы и компоненты"
+1. **MSI installer** - best option for distribution
+   - Users can install through standard Windows interface
+   - Automatically registers in "Programs and Features"
 
-2. **Исполняемый файл** - портативная версия
-   - Можно запускать без установки
-   - Требует только один файл
+2. **Executable file** - portable version
+   - Can run without installation
+   - Requires only one file
 
-3. **NSIS установщик** - альтернатива MSI
-   - Более кастомизируемый установщик
-   - Меньший размер
+3. **NSIS installer** - alternative to MSI
+   - More customizable installer
+   - Smaller size
 
-## Версии и обновления
+## Version updates
 
-Обновить версию приложения в:
-- `package.json` - версия проекта
-- `src-tauri/tauri.conf.json` - версия Tauri приложения
+Update application version in:
+- `package.json` - project version
+- `src-tauri/tauri.conf.json` - Tauri application version
 
-После изменения версии пересобрать приложение.
+After changing version, rebuild the application.
 
 ---
 
-**Удачной сборки! 🚀**
+**Happy building! 🚀**
 
-Если возникнут проблемы, проверьте:
-1. Все ли зависимости установлены
-2. Перезапущен ли терминал после установки
-3. Не блокирует ли антивирус процесс сборки
+If issues arise, check:
+1. All dependencies are installed
+2. Terminal restarted after installation
+3. Antivirus is not blocking the build process
